@@ -9,6 +9,7 @@ const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8")
 const barWidget = read("BarWidget.qml")
 const panel = read("Panel.qml")
 const manifest = JSON.parse(read("manifest.json"))
+const settings = read("SettingsView.qml")
 
 // ---- Model.applyShowDate: the date mask
 
@@ -69,8 +70,8 @@ test("BarWidget reads showDate tolerating the string form", () => {
 test("Panel defines the toggle and writes it through persistSettings", () => {
   assert.match(panel, /function toggleShowDate\(\)/)
   assert.match(panel, /persistSettings\(\{ showDate: !root\.showDate \}\)/)
-  assert.match(panel, /onClicked: root\.toggleShowDate\(\)/)
-  assert.match(panel, /root\.showDate \? "ON" : "OFF"/)
+  assert.match(settings, /clockPanel\.toggleShowDate\(\)/) // the settings row is the click surface now
+  assert.match(settings, /clockPanel\.showDate \? "ON" : "OFF"/)
 })
 
 test("rebrand is complete — no omarchy.clock left behind", () => {
@@ -174,13 +175,45 @@ test("zonesToString round-trips through parseWorldClocks", () => {
   assert.deepEqual(M.parseWorldClocks(M.zonesToString([])), [])
 })
 
-test("Panel owns the zone picker and writes through zonesToString", () => {
-  assert.match(panel, /function toggleZonesEditing\(\)/)
+test("filterZones: aliases first, city-prefix beats substring, capped, empty-safe", () => {
+  const Z = require("../zones.js").TZ_REGIONS
+  const et = M.filterZones(Z, "et", 8)
+  assert.equal(et[0].zone, "America/New_York") // alias wins
+  assert.equal(M.filterZones(Z, "a", 8).length, 8) // capped at the limit when matches abound
+  const london = M.filterZones(Z, "london", 8)
+  assert.equal(london.length, 1)
+  assert.equal(london[0].zone, "Europe/London")
+  const news = M.filterZones(Z, "new", 8)
+  assert.equal(news[0].zone, "America/New_York") // prefix beats substring
+  assert.ok(news.some(z => z.zone === "America/North_Dakota/New_Salem" && z.subregion === "North Dakota"))
+  const utc = M.filterZones(Z, "UTC", 8)
+  assert.equal(utc[0].zone, "UTC")
+  assert.deepEqual(M.filterZones(Z, "", 8), [])
+  assert.deepEqual(M.filterZones(Z, null, 8), [])
+  assert.equal(M.filterZones(Z, "zzzzz", 8).length, 0)
+})
+
+test("Settings view is the config surface: gear swaps it in, writes go through panel functions", () => {
+  assert.match(settings, /property var clockPanel: null/)
+  assert.match(settings, /clockPanel\.zonesAdd\(resultRow\.modelData\.zone\)/)
+  assert.match(settings, /clockPanel\.zonesRemove\(zoneRow\.modelData\.zone\)/)
+  assert.match(settings, /clockPanel\.toggleShowDate\(\)/)
+  assert.match(settings, /clockPanel\.timerStep\(-5\)/)
+  assert.match(settings, /Model\.filterZones\(Zones\.TZ_REGIONS, search, 8\)/)
+  assert.match(settings, /SystemClock \{/) // own minute tick — panel ids are file-scoped
+  assert.match(panel, /onClicked: root\.settingsOpen = true/)
+  assert.match(panel, /blocked: root\.editingLife \|\| root\.settingsOpen/)
+  assert.match(panel, /visible: !root\.settingsOpen/)
+  assert.match(panel, /visible: root\.settingsOpen/)
+  assert.match(panel, /import "SettingsView\.qml"/)
+})
+
+test("Panel still owns zone add/remove through zonesToString", () => {
   assert.match(panel, /function zonesAdd\(zone\)/)
   assert.match(panel, /function zonesRemove\(zone\)/)
   assert.match(panel, /persistSettings\(\{ worldClocks: Model\.zonesToString\(current\) \}\)/)
-  assert.match(panel, /ZONES · ADD/)
-  assert.match(panel, /import "zones\.js" as Zones/)
+  assert.doesNotMatch(panel, /zonesPill/)
+  assert.doesNotMatch(panel, /zonesPickerCol/)
 })
 
 test("Panel owns the timer actions and writes exact keys", () => {

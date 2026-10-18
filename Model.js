@@ -335,11 +335,80 @@ function parseWorldClocks(spec) {
 }
 
 // zonesToString: inverse of parseWorldClocks — picker writes go through this
-//      so the stored string stays in the one shape both readers expect.
+//      so the stored shape never drifts.
 function zonesToString(zones) {
   var out = []
   for (var i = 0; i < zones.length; i++) out.push(zones[i].label + ":" + zones[i].zone)
   return out.join(",")
+}
+
+// ---- Zone search (settings view). NN/g findings: users find zones by city,
+//      not offset; search beats browsing; abbreviations people actually say
+//      (ET, PT, UTC) resolve as aliases. Ranking: alias > city starts-with >
+//      city contains > region/subregion match (region only from 3 chars, so
+//      "a" does not dump all of Africa/America).
+var ZONE_ALIASES = {
+  et: "America/New_York", est: "America/New_York",
+  ct: "America/Chicago", cst: "America/Chicago",
+  mt: "America/Denver", mst: "America/Denver",
+  pt: "America/Los_Angeles", pst: "America/Los_Angeles",
+  utc: "UTC", gmt: "UTC", z: "UTC"
+}
+
+function prettifyCity(path) {
+  var parts = String(path).split("/")
+  return parts[parts.length - 1].replace(/_/g, " ")
+}
+
+function filterZones(regions, query, limit) {
+  limit = limit || 8
+  var q = String(query || "").replace(/^\s+|\s+$/g, "").toLowerCase()
+  if (q === "") return []
+  var scored = []
+  function add(score, zone, region, city) {
+    for (var i = 0; i < scored.length; i++) {
+      if (scored[i].zone === zone) { if (score > scored[i].s) scored[i].s = score; return }
+    }
+    scored.push({
+      s: score,
+      zone: zone,
+      region: region,
+      city: prettifyCity(city),
+      subregion: String(city).indexOf("/") >= 0 ? String(city).split("/")[0].replace(/_/g, " ") : ""
+    })
+  }
+  var alias = ZONE_ALIASES[q]
+  if (alias) {
+    if (alias === "UTC") add(3, "UTC", "UTC", "UTC")
+    else {
+      var rp = alias.split("/")
+      add(3, alias, rp[0], rp[1])
+    }
+  }
+  for (var region in regions) {
+    if (!Object.prototype.hasOwnProperty.call(regions, region)) continue
+    var rl = region.toLowerCase()
+    var cities = regions[region]
+    for (var j = 0; j < cities.length; j++) {
+      var city = cities[j]
+      var zone = region + "/" + city
+      if (alias && zone === alias) continue
+      var pretty = prettifyCity(city).toLowerCase()
+      if (pretty.indexOf(q) === 0) add(2, zone, region, city)
+      else if (pretty.indexOf(q) >= 0) add(1, zone, region, city)
+      else if (rl.indexOf(q) === 0 && q.length >= 3) add(0.5, zone, region, city)
+      else if (zone.toLowerCase().indexOf(q) >= 0) add(0.5, zone, region, city)
+    }
+  }
+  scored.sort(function(a, b) {
+    if (b.s !== a.s) return b.s - a.s
+    return a.zone < b.zone ? -1 : (a.zone > b.zone ? 1 : 0)
+  })
+  var out = []
+  for (var k = 0; k < scored.length && out.length < limit; k++) {
+    out.push({ zone: scored[k].zone, region: scored[k].region, city: scored[k].city, subregion: scored[k].subregion })
+  }
+  return out
 }
 
 // ---- Countdown timer. State lives in the widget entry: timerMinutes is the
@@ -389,6 +458,8 @@ if (typeof module !== "undefined") {
     plausibleTimeZone: plausibleTimeZone,
     parseWorldClocks: parseWorldClocks,
     zonesToString: zonesToString,
+    prettifyCity: prettifyCity,
+    filterZones: filterZones,
     formatCountdown: formatCountdown,
     stepTimerMinutes: stepTimerMinutes
   }
