@@ -94,7 +94,7 @@ test("parseWorldClocks parses label:zone pairs, comma separated", () => {
   ])
 })
 
-test("parseWorldClocks keeps structurally plausible zones, drops garbage, caps at four", () => {
+test("parseWorldClocks keeps structurally plausible zones, drops garbage, caps at five", () => {
   // A zone name that LOOKS like a zone parses — the date call at render time
   // is what catches a real typo (shows —). Structural garbage is dropped here.
   assert.deepEqual(M.parseWorldClocks("ET:Not/AZone,PT:America/Los_Angeles"), [
@@ -106,8 +106,9 @@ test("parseWorldClocks keeps structurally plausible zones, drops garbage, caps a
   ])
   assert.equal(M.parseWorldClocks("").length, 0)
   assert.equal(M.parseWorldClocks(null).length, 0)
-  assert.equal(M.parseWorldClocks("A:UTC,B:UTC,C:UTC,D:UTC,E:UTC").length, 4)
-  assert.equal(M.parseWorldClocks("nolabel:America/New_York").length, 0)
+  assert.equal(M.parseWorldClocks("A:UTC,B:UTC,C:UTC,D:UTC,E:UTC,F:UTC").length, 5)
+  assert.equal(M.parseWorldClocks("nolabel:America/New_York").length, 1) // labels up to 14 chars (city names)
+  assert.equal(M.parseWorldClocks("thislabeliswaytoolong:America/New_York").length, 0)
 })
 
 test("plausibleTimeZone accepts IANA shapes and fixed offsets, rejects junk", () => {
@@ -144,6 +145,44 @@ test("Panel reads worldClocks through Model and renders zone times via date", ()
   assert.match(panel, /\^\[0-9\]\{1,2\}:\[0-9\]\{2\} \(AM\|PM\)\$/) // output validated before display
 })
 
+test("zones.js picker list is real: every entry exists in this tzdata", () => {
+  const src = read("zones.js")
+  assert.match(src, /export const TZ_REGIONS/)
+  const data = JSON.parse(src.slice(src.indexOf("{"), src.lastIndexOf("}") + 1))
+  const fs = require("node:fs")
+  let count = 0
+  for (const [region, cities] of Object.entries(data)) {
+    assert.match(region, /^[A-Za-z]+$/)
+    for (const city of cities) {
+      if (region === "UTC" && city === "UTC") { count++; continue }
+      assert.ok(fs.existsSync(`/usr/share/zoneinfo/${region}/${city}`), `${region}/${city} missing from tzdata`)
+      assert.doesNotMatch(city, / /)
+      count++
+    }
+  }
+  assert.ok(count >= 40, `picker too thin (${count} zones)`)
+})
+
+test("zonesToString round-trips through parseWorldClocks", () => {
+  const zones = [
+    { label: "New York", zone: "America/New_York" },
+    { label: "UTC", zone: "UTC" }
+  ]
+  const str = M.zonesToString(zones)
+  assert.equal(str, "New York:America/New_York,UTC:UTC")
+  assert.deepEqual(M.parseWorldClocks(str), zones)
+  assert.deepEqual(M.parseWorldClocks(M.zonesToString([])), [])
+})
+
+test("Panel owns the zone picker and writes through zonesToString", () => {
+  assert.match(panel, /function toggleZonesEditing\(\)/)
+  assert.match(panel, /function zonesAdd\(zone\)/)
+  assert.match(panel, /function zonesRemove\(zone\)/)
+  assert.match(panel, /persistSettings\(\{ worldClocks: Model\.zonesToString\(current\) \}\)/)
+  assert.match(panel, /ZONES · ADD/)
+  assert.match(panel, /import "zones\.js" as Zones/)
+})
+
 test("Panel owns the timer actions and writes exact keys", () => {
   assert.match(panel, /function timerStep\(delta\)/)
   assert.match(panel, /function timerToggle\(\)/)
@@ -166,8 +205,8 @@ test("BarWidget carries the countdown in the label and tolerates string state", 
   assert.match(barWidget, /value === true \|\| value === "true"/)
 })
 
-test("version moved to 0.2.0 with the feature set named", () => {
-  assert.equal(manifest.version, "0.2.0")
+test("version moved to 0.2.1 with the feature set named", () => {
+  assert.equal(manifest.version, "0.2.1")
   assert.match(manifest.description, /world-clock/)
   assert.match(manifest.description, /countdown timer/)
 })

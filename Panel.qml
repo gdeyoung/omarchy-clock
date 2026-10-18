@@ -5,6 +5,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
+import "zones.js" as Zones
 
 // The clock's calendar popup: a month grid with ISO week numbers, built to
 // sit beside the weather panel — same hero-over-detail composition, same
@@ -83,8 +84,39 @@ Panel {
   }
 
   // ---- World clock row: labeled times in other zones, only when configured.
-  //      Setting shape and validation live in Model.parseWorldClocks.
+  //      Setting shape and validation live in Model.parseWorldClocks. The
+  //      ZONES pill in the footer opens an inline editor — the row itself is
+  //      hidden when unset, so the pill is how a first zone gets added.
   readonly property var worldClocks: Model.parseWorldClocks(setting("worldClocks", ""))
+
+  property bool zonesEditing: false
+  property string zonesRegion: "America"
+
+  function toggleZonesEditing() { root.zonesEditing = !root.zonesEditing }
+
+  function zonesAdd(zone) {
+    // zone is a full tz name ("America/New_York", "UTC"); the label is the
+    // city part with underscores as spaces. Idempotent, capped at five —
+    // writes go through zonesToString so the stored shape never drifts.
+    var current = Model.parseWorldClocks(String(setting("worldClocks", "") || ""))
+    for (var i = 0; i < current.length; i++) {
+      if (current[i].zone === zone) return
+    }
+    if (current.length >= 5) return
+    var parts = zone.split("/")
+    var city = parts[parts.length - 1]
+    current.push({ label: city === "UTC" ? "UTC" : city.replace(/_/g, " "), zone: zone })
+    persistSettings({ worldClocks: Model.zonesToString(current) })
+  }
+
+  function zonesRemove(zone) {
+    var current = Model.parseWorldClocks(String(setting("worldClocks", "") || ""))
+    var kept = []
+    for (var i = 0; i < current.length; i++) {
+      if (current[i].zone !== zone) kept.push(current[i])
+    }
+    persistSettings({ worldClocks: Model.zonesToString(kept) })
+  }
 
   // ---- Countdown timer. The panel owns the controls; state persists in the
   //      widget entry so a run survives shell restarts. The bar label shows
@@ -444,10 +476,10 @@ Panel {
             height: visible ? zonesRow.height : 0
             visible: root.worldClocks.length > 0
 
-            Row {
+            Flow {
               id: zonesRow
-              anchors.horizontalCenter: parent.horizontalCenter
-              spacing: Style.space(24)
+              width: parent.width
+              spacing: Style.space(18)
 
               Repeater {
                 model: root.worldClocks
@@ -483,7 +515,7 @@ Panel {
                   Text {
                     anchors.baseline: zoneTimeText.baseline
                     textFormat: Text.PlainText
-                    text: zoneDelegate.modelData.label.toUpperCase()
+                    text: zoneDelegate.modelData.label
                     color: Qt.darker(root.contentForeground, 1.5)
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.caption
@@ -984,47 +1016,253 @@ Panel {
           // ---- Bar-label toggle: the date beside the time. Same write-back
           //      path as the week-start "W" heading — persistSettings writes
           //      shell.json, and the pushed value comes back live.
+          // ---- Zone picker: current zones as removable chips, region tabs,
+          //      then city chips. Every add/remove writes worldClocks
+          //      immediately — there is no OK step to forget. The city list
+          //      is curated and verified against this machine's tzdata
+          //      (zones.js), so nothing dead can be picked.
           Item {
             width: parent.width
-            height: barDateRow.height
+            height: visible ? zonesPickerCol.height : 0
+            visible: root.zonesEditing
 
-            Rectangle {
-              id: barDateRow
-              anchors.horizontalCenter: parent.horizontalCenter
-              width: barDateLabel.implicitWidth + Style.space(28)
-              height: Math.max(barDateLabel.implicitHeight + Style.space(8), Style.space(24))
-              radius: Style.cornerRadius
-              border.width: Style.spacing.hairline
-              border.color: barDateMouse.containsMouse
-                ? Style.normalBorderFor(root.contentForeground, Commons.Color.accent)
-                : Style.normalBorderFor(root.contentForeground, root.contentForeground)
-              color: barDateMouse.containsMouse
-                ? Style.hoverFillFor(root.contentForeground, Commons.Color.accent)
-                : "transparent"
+            Column {
+              id: zonesPickerCol
+              width: parent.width
+              spacing: Style.space(8)
 
-              Text {
-                id: barDateLabel
-                anchors.centerIn: parent
-                textFormat: Text.PlainText
-                text: "DATE IN BAR · " + (root.showDate ? "ON" : "OFF")
-                color: root.contentForeground
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.caption
-                font.letterSpacing: 1
-                font.bold: true
+              Flow {
+                width: parent.width
+                visible: root.worldClocks.length > 0
+                spacing: Style.space(6)
+
+                Repeater {
+                  model: root.worldClocks
+
+                  Rectangle {
+                    id: zoneChip
+                    required property var modelData
+                    width: zoneChipText.implicitWidth + zoneChipX.implicitWidth + Style.space(16)
+                    height: Math.max(Style.space(24), zoneChipText.implicitHeight + Style.space(10))
+                    radius: height / 2
+                    color: Style.hoverFillFor(root.contentForeground, Commons.Color.accent)
+                    border.width: Style.spacing.hairline
+                    border.color: Style.normalBorderFor(root.contentForeground, root.contentForeground)
+
+                    Row {
+                      anchors.centerIn: parent
+                      spacing: Style.space(8)
+
+                      Text {
+                        id: zoneChipText
+                        textFormat: Text.PlainText
+                        text: zoneChip.modelData.label
+                        color: root.contentForeground
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption
+                      }
+
+                      Text {
+                        id: zoneChipX
+                        textFormat: Text.PlainText
+                        text: "×"
+                        color: Qt.darker(root.contentForeground, 1.4)
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.body
+                        font.bold: true
+
+                        MouseArea {
+                          anchors.fill: parent
+                          cursorShape: Qt.PointingHandCursor
+                          onClicked: root.zonesRemove(zoneChip.modelData.zone)
+                        }
+                      }
+                    }
+                  }
+                }
               }
 
-              MouseArea {
-                id: barDateMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.toggleShowDate()
+              Flow {
+                width: parent.width
+                spacing: Style.space(6)
 
-                PanelToolTip {
-                  visible: barDateMouse.containsMouse
-                  text: "Show the date beside the time in the bar"
-                  fontFamily: root.contentFontFamily
+                Repeater {
+                  model: Object.keys(Zones.TZ_REGIONS)
+
+                  Rectangle {
+                    id: regionTab
+                    required property string modelData
+                    property bool selected: root.zonesRegion === modelData
+                    width: regionTabText.implicitWidth + Style.space(16)
+                    height: Math.max(Style.space(24), regionTabText.implicitHeight + Style.space(10))
+                    radius: Style.cornerRadius
+                    border.width: Style.spacing.hairline
+                    border.color: selected
+                      ? Commons.Color.accent
+                      : Style.normalBorderFor(root.contentForeground, root.contentForeground)
+                    color: selected
+                      ? Style.hoverFillFor(root.contentForeground, Commons.Color.accent)
+                      : "transparent"
+
+                    Text {
+                      id: regionTabText
+                      anchors.centerIn: parent
+                      textFormat: Text.PlainText
+                      text: regionTab.modelData.toUpperCase()
+                      color: root.contentForeground
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                      font.letterSpacing: 1
+                      font.bold: regionTab.selected
+                    }
+
+                    MouseArea {
+                      anchors.fill: parent
+                      hoverEnabled: true
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: root.zonesRegion = regionTab.modelData
+                    }
+                  }
+                }
+              }
+
+              Flow {
+                width: parent.width
+                spacing: Style.space(6)
+
+                Repeater {
+                  model: root.zonesRegion === "UTC" ? ["UTC"] : (Zones.TZ_REGIONS[root.zonesRegion] || [])
+
+                  Rectangle {
+                    id: cityChip
+                    required property string modelData
+                    property string zone: root.zonesRegion === "UTC" ? "UTC" : root.zonesRegion + "/" + modelData
+                    property bool picked: {
+                      var zones = root.worldClocks
+                      for (var i = 0; i < zones.length; i++) {
+                        if (zones[i].zone === zone) return true
+                      }
+                      return false
+                    }
+                    width: cityChipText.implicitWidth + Style.space(16)
+                    height: Math.max(Style.space(24), cityChipText.implicitHeight + Style.space(10))
+                    radius: height / 2
+                    border.width: Style.spacing.hairline
+                    border.color: picked
+                      ? Commons.Color.accent
+                      : Style.normalBorderFor(root.contentForeground, root.contentForeground)
+                    color: picked
+                      ? Style.hoverFillFor(root.contentForeground, Commons.Color.accent)
+                      : "transparent"
+
+                    Text {
+                      id: cityChipText
+                      anchors.centerIn: parent
+                      textFormat: Text.PlainText
+                      text: cityChip.modelData === "UTC" ? "UTC" : cityChip.modelData.replace(/_/g, " ")
+                      color: root.contentForeground
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption
+                    }
+
+                    MouseArea {
+                      anchors.fill: parent
+                      hoverEnabled: true
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: root.zonesAdd(cityChip.zone)
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          Item {
+            width: parent.width
+            height: footerControls.height
+
+            Row {
+              id: footerControls
+              anchors.horizontalCenter: parent.horizontalCenter
+              spacing: Style.space(10)
+
+              Rectangle {
+                id: zonesPill
+                width: zonesPillText.implicitWidth + Style.space(24)
+                height: Math.max(zonesPillText.implicitHeight + Style.space(8), Style.space(24))
+                radius: Style.cornerRadius
+                border.width: Style.spacing.hairline
+                border.color: zonesPillMouse.containsMouse
+                  ? Style.normalBorderFor(root.contentForeground, Commons.Color.accent)
+                  : Style.normalBorderFor(root.contentForeground, root.contentForeground)
+                color: zonesPillMouse.containsMouse
+                  ? Style.hoverFillFor(root.contentForeground, Commons.Color.accent)
+                  : "transparent"
+
+                Text {
+                  id: zonesPillText
+                  anchors.centerIn: parent
+                  textFormat: Text.PlainText
+                  text: root.worldClocks.length > 0 ? "ZONES · " + root.worldClocks.length : "ZONES · ADD"
+                  color: root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                  font.letterSpacing: 1
+                  font.bold: true
+                }
+
+                MouseArea {
+                  id: zonesPillMouse
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: root.toggleZonesEditing()
+
+                  PanelToolTip {
+                    visible: zonesPillMouse.containsMouse
+                    text: "Edit the world-clock zones (LABEL:Zone, up to five)"
+                    fontFamily: root.contentFontFamily
+                  }
+                }
+              }
+
+              Rectangle {
+                id: barDateRow
+                width: barDateLabel.implicitWidth + Style.space(28)
+                height: Math.max(barDateLabel.implicitHeight + Style.space(8), Style.space(24))
+                radius: Style.cornerRadius
+                border.width: Style.spacing.hairline
+                border.color: barDateMouse.containsMouse
+                  ? Style.normalBorderFor(root.contentForeground, Commons.Color.accent)
+                  : Style.normalBorderFor(root.contentForeground, root.contentForeground)
+                color: barDateMouse.containsMouse
+                  ? Style.hoverFillFor(root.contentForeground, Commons.Color.accent)
+                  : "transparent"
+
+                Text {
+                  id: barDateLabel
+                  anchors.centerIn: parent
+                  textFormat: Text.PlainText
+                  text: "DATE IN BAR · " + (root.showDate ? "ON" : "OFF")
+                  color: root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption
+                  font.letterSpacing: 1
+                  font.bold: true
+                }
+
+                MouseArea {
+                  id: barDateMouse
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: root.toggleShowDate()
+
+                  PanelToolTip {
+                    visible: barDateMouse.containsMouse
+                    text: "Show the date beside the time in the bar"
+                    fontFamily: root.contentFontFamily
+                  }
                 }
               }
             }

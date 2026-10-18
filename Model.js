@@ -310,10 +310,7 @@ function applyShowDate(format, showDate) {
 }
 
 // ---- World clock. Setting shape: "ET:America/New_York,PT:America/Los_Angeles".
-//      Labels stay short (the row is tight). Zone VALIDATION at render time is
-//      the `date` call's shape-checked output; parse-time checking is
-//      structural only — the QML engine has no Intl, so an Intl-based check
-//      here would drop every zone. Max four — the popup is not a world map.
+//      Labels stay short enough for the row (city names allowed — it wraps).
 function plausibleTimeZone(zone) {
   return /^UTC$|^[A-Za-z0-9_+\-]+(\/[A-Za-z0-9_+\-]+){1,2}$/.test(zone)
 }
@@ -329,12 +326,20 @@ function parseWorldClocks(spec) {
     if (idx < 1) continue
     var label = piece.slice(0, idx).replace(/^\s+|\s+$/g, "")
     var zone = piece.slice(idx + 1).replace(/^\s+|\s+$/g, "")
-    if (label === "" || zone === "" || label.length > 5) continue
-    if (out.length >= 4) break
+    if (label === "" || zone === "" || label.length > 14) continue
+    if (out.length >= 5) break
     if (!plausibleTimeZone(zone)) continue
     out.push({ label: label, zone: zone })
   }
   return out
+}
+
+// zonesToString: inverse of parseWorldClocks — picker writes go through this
+//      so the stored string stays in the one shape both readers expect.
+function zonesToString(zones) {
+  var out = []
+  for (var i = 0; i < zones.length; i++) out.push(zones[i].label + ":" + zones[i].zone)
+  return out.join(",")
 }
 
 // ---- Countdown timer. State lives in the widget entry: timerMinutes is the
@@ -383,6 +388,7 @@ if (typeof module !== "undefined") {
     applyShowDate: applyShowDate,
     plausibleTimeZone: plausibleTimeZone,
     parseWorldClocks: parseWorldClocks,
+    zonesToString: zonesToString,
     formatCountdown: formatCountdown,
     stepTimerMinutes: stepTimerMinutes
   }

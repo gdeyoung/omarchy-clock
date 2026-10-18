@@ -18,8 +18,10 @@ Four things, everything else is stock:
    `DATE IN BAR · ON/OFF` pill at the bottom of the calendar. Clicking it
    writes back to `~/.config/omarchy/shell.json` and the bar label changes
    live.
-3. **An optional world-clock row** — labeled times in up to four other
-   zones, right under the date hero. Set `worldClocks` to
+3. **An optional world-clock row** — times in up to five other zones, right
+   under the date hero. Pick them in the popup: the **ZONES** pill opens a
+   region → city picker (curated list, verified against tzdata), with × to
+   remove — or set `worldClocks` by hand:
    `ET:America/New_York,PT:America/Los_Angeles` and the popup carries
    `ET 5:20 PM  PT 2:20 PM`. Unset (default) hides the row. The QML engine
    has no timezone support, so each configured zone costs one read-only
@@ -65,7 +67,7 @@ files).
 | `format`     | `dddd MMM d h:mm AP`    | Bar label format (stock ring + right-click cycling still work) |
 | `formatAlt`  | `d MMMM 'W'ww yyyy`     | Alternate format (stock)                  |
 | `showDate`   | `true`                  | Date in the bar label — the popup toggle  |
-| `worldClocks`| *(empty)*               | `LABEL:Zone,LABEL:Zone` row in the popup  |
+| `worldClocks`| *(empty)*               | `LABEL:Zone,...` row in the popup — pick region → city via the ZONES pill  |
 | `timerMinutes` | `10`                  | Idle timer preset (1–600)                 |
 | `timerRunning`, `timerEndsAt`, `timerRemainingMs`, `timerDoneAt` | *(transient)* | Live timer state — written by the popup controls, read by the bar |
 | `verticalFormat`, `verticalFormatAlt`, `weekStartDay`, `birthYear`, `lifeExpectancy` | stock | Untouched stock settings |
