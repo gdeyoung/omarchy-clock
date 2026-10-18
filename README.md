@@ -52,6 +52,18 @@ Four things, everything else is stock:
    time itself stays foreground. Greens/violets are deliberately excluded
    so zones never read as pomodoro phases.
 
+## Screenshots
+
+The popup — calendar, color-coded world-clock row, and the redesigned timer
+section (the gear opens the settings view):
+
+![Calendar popup](assets/preview-calendar.png)
+
+Timer mid-run — mm:ss hero readout, remaining-time bar, 4-block pomodoro
+cycle rail, phase co-coded with words and color:
+
+![Timer section](assets/preview-timer.png)
+
 `showDate: false` masks the date out of *whatever* format the label is in —
 `dddd MMM d h:mm AP` becomes `dddd h:mm AP`, `yyyy-MM-dd HH:mm` becomes
 `HH:mm` — while keeping the day name and the time. A format that is nothing
