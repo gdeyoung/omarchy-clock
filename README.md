@@ -1,6 +1,6 @@
-# Clock (gdeyoung.clock)
+# Time Piece (gdeyoung.timepiece)
 
-![Clock](preview.png)
+![Time Piece](preview.png)
 
 Fork of the stock Omarchy clock — the bar label shows the date by default:
 **`Sunday Oct 18 4:20 PM`** instead of `Sunday 4:20 PM`, with a date on/off
@@ -27,9 +27,9 @@ rather than rendering an empty clock.
 ### CLI
 
 ```sh
-omarchy bar set gdeyoung.clock showDate false   # date off
-omarchy bar set gdeyoung.clock showDate true    # date back on
-omarchy bar set gdeyoung.clock format "dddd MMM d h:mm AP"
+omarchy bar set gdeyoung.timepiece showDate false   # date off
+omarchy bar set gdeyoung.timepiece showDate true    # date back on
+omarchy bar set gdeyoung.timepiece format "dddd MMM d h:mm AP"
 ```
 
 Values written without `--json` land as strings; the plugin reads both
@@ -62,17 +62,17 @@ Omarchy's own settings read/write API (`shell.setBarWidget` /
 ## Install
 
 ```sh
-omarchy plugin add https://github.com/gdeyoung/omarchy-clock.git --enable
-omarchy bar put gdeyoung.clock --before omarchy.clock   # or wherever you want it
+omarchy plugin add https://github.com/gdeyoung/omarchy-timepiece.git --enable
+omarchy bar put gdeyoung.timepiece --before omarchy.clock   # or wherever you want it
 ```
 
 Then remove the stock clock from the bar (`omarchy bar move omarchy.clock`
 out, or edit `~/.config/omarchy/shell.json`). Manual install:
-`git clone <this repo> ~/.config/omarchy/plugins/gdeyoung.clock`.
+`git clone <this repo> ~/.config/omarchy/plugins/gdeyoung.timepiece`.
 
-**Remove:** `omarchy plugin remove gdeyoung.clock --yes` (then re-enable the
+**Remove:** `omarchy plugin remove gdeyoung.timepiece --yes` (then re-enable the
 stock clock with `omarchy plugin enable omarchy.clock` and put it back on
-the bar). All settings live in the `gdeyoung.clock` entry of
+the bar). All settings live in the `gdeyoung.timepiece` entry of
 `~/.config/omarchy/shell.json` — nothing else is written outside Omarchy's
 own config.
 

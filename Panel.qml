@@ -17,8 +17,8 @@ import "Model.js" as Model
 // anchor against.
 Panel {
   id: root
-  moduleName: "gdeyoung.clock"
-  ipcTarget: "gdeyoung.clock"
+  moduleName: "gdeyoung.timepiece"
+  ipcTarget: "gdeyoung.timepiece"
   manageIpc: false
 
   property var anchorItem: null

@@ -12,7 +12,7 @@ import "Model.js" as Model
 // middle click opens the timezone picker.
 BarWidget {
   id: root
-  moduleName: "gdeyoung.clock"
+  moduleName: "gdeyoung.timepiece"
 
   property date displayDate: clock.date
 
@@ -137,7 +137,7 @@ BarWidget {
   }
 
   IpcHandler {
-    target: "gdeyoung.clock"
+    target: "gdeyoung.timepiece"
 
     function refresh(): void { root.broadcast("refresh") }
     function cycleFormat(): void { root.cycleFormat() }

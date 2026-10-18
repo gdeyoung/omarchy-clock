@@ -79,7 +79,7 @@ test("rebrand is complete — no omarchy.clock left behind", () => {
 })
 
 test("manifest carries the fork identity", () => {
-  assert.equal(manifest.id, "gdeyoung.clock")
+  assert.equal(manifest.id, "gdeyoung.timepiece")
   assert.equal(manifest.author, "gdeyoung")
   assert.deepEqual(manifest.kinds, ["bar-widget"])
   assert.equal(manifest.entryPoints.barWidget, "BarWidget.qml")
