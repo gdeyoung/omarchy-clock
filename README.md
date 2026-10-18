@@ -1,5 +1,7 @@
 # Clock (gdeyoung.clock)
 
+![Clock](preview.png)
+
 Fork of the stock Omarchy clock — the bar label shows the date by default:
 **`Sunday Oct 18 4:20 PM`** instead of `Sunday 4:20 PM`, with a date on/off
 toggle in the calendar popup.

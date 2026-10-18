@@ -1,0 +1,59 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+html,body{width:2000px;height:1125px;overflow:hidden;margin:0}
+body{background:#0d0f14;font-family:Inter,system-ui,sans-serif;color:#e8edf2;position:relative}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+.eyebrow{position:absolute;left:100px;top:118px;font-size:26px;font-weight:700;letter-spacing:6px;color:#7dd3fc}
+h1{position:absolute;left:100px;top:170px;width:860px;font-size:84px;font-weight:800;line-height:1.04;margin:0;white-space:nowrap}
+p.intro{position:absolute;left:100px;top:400px;width:820px;font-size:22px;line-height:1.55;color:#a8b4ae;margin:0}
+.cols{position:absolute;left:100px;top:560px;display:flex;gap:70px}
+.col{width:360px}
+.col div{font-size:20px;color:#c3cdc7;line-height:1.5;margin-bottom:18px;font-weight:300}
+.col b{color:#7dd3fc;font-weight:400;margin-right:10px}
+.rule{position:absolute;left:100px;right:100px;bottom:96px;height:1px;background:#2a2f36}
+.footer{position:absolute;left:100px;right:100px;bottom:44px;display:flex;justify-content:space-between;font-size:18px;color:#7d8a94}
+.footer .id{color:#7dd3fc}
+.cap{position:absolute;font-size:17px;letter-spacing:3px;color:#7d8a94;font-weight:600}
+.card{position:absolute;border:1px solid #2a2f36;border-radius:12px;overflow:hidden;background:#11141b;box-shadow:0 30px 80px rgba(0,0,0,.55)}
+#capA{right:150px;top:120px}
+#cardA{right:150px;top:150px;width:800px;z-index:2}
+#cardA img{width:800px;display:block}
+#capB{right:260px;top:690px}
+#cardB{right:260px;top:720px;width:690px;height:250px;z-index:1}
+.tcard{padding:26px 30px;font-size:19px;line-height:1.75;color:#c3cdc7}
+.tcard .p{color:#b197fc}
+.tcard .ok{color:#9eff4d}
+</style></head><body>
+<div class="eyebrow mono">CLOCK&nbsp;/&nbsp;GDEYOUNG</div>
+<h1>THE DATE, BESIDE<br>THE TIME.</h1>
+<p class="intro">A fork of the stock Omarchy clock. Day name, short date and time in the bar label by default — and a bordered toggle in the calendar popup for the days you'd rather just see the time.</p>
+<div class="cols mono">
+  <div class="col">
+    <div><b>◆</b>Date in the bar label by default</div>
+    <div><b>◆</b>Sunday Oct 18 4:20 PM, at a glance</div>
+    <div><b>◆</b>DATE IN BAR toggle in the popup</div>
+    <div><b>◆</b>Masks any format on the ring</div>
+  </div>
+  <div class="col">
+    <div><b>◆</b>Right-click format cycling kept</div>
+    <div><b>◆</b>Calendar, week numbers, week start</div>
+    <div><b>◆</b>Zero external commands</div>
+    <div><b>◆</b>MIT — rebases onto stock clock</div>
+  </div>
+</div>
+<div class="rule"></div>
+<div class="footer mono">
+  <span>what day it is, at a glance</span>
+  <span class="id">gdeyoung.clock · 0.1.0</span>
+  <span>gdeyoung/omarchy-clock</span>
+</div>
+<div class="cap mono" id="capA">THE CALENDAR — DATE TOGGLE</div>
+<div class="card" id="cardA"><img src="assets/preview-calendar.png"></div>
+<div class="cap mono" id="capB">THE CLI — REAL OUTPUT</div>
+<div class="card" id="cardB"><div class="tcard mono">
+<span class="p">$</span> omarchy bar set gdeyoung.clock showDate false<br>
+Set showDate on gdeyoung.clock&nbsp;&nbsp;<span class="ok">→ Sunday 4:09 PM</span><br>
+<span class="p">$</span> node --test test/<br>
+ℹ tests 12&nbsp;&nbsp;ℹ pass 12&nbsp;&nbsp;ℹ fail 0
+</div></div>
+</body></html>
