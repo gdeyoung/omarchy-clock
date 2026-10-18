@@ -70,6 +70,12 @@ Then remove the stock clock from the bar (`omarchy bar move omarchy.clock`
 out, or edit `~/.config/omarchy/shell.json`). Manual install:
 `git clone <this repo> ~/.config/omarchy/plugins/gdeyoung.clock`.
 
+**Remove:** `omarchy plugin remove gdeyoung.clock --yes` (then re-enable the
+stock clock with `omarchy plugin enable omarchy.clock` and put it back on
+the bar). All settings live in the `gdeyoung.clock` entry of
+`~/.config/omarchy/shell.json` — nothing else is written outside Omarchy's
+own config.
+
 ## Provenance
 
 Forked from the first-party `omarchy.clock` shipped in **omarchy 4.0.5-1**
