@@ -84,3 +84,79 @@ test("manifest carries the fork identity", () => {
   assert.deepEqual(manifest.kinds, ["bar-widget"])
   assert.equal(manifest.entryPoints.barWidget, "BarWidget.qml")
 })
+
+// ---- World clock parsing and zone labels
+
+test("parseWorldClocks parses label:zone pairs, comma separated", () => {
+  assert.deepEqual(M.parseWorldClocks("ET:America/New_York, PT:America/Los_Angeles"), [
+    { label: "ET", zone: "America/New_York" },
+    { label: "PT", zone: "America/Los_Angeles" }
+  ])
+})
+
+test("parseWorldClocks drops bad zones, empty pieces, and caps at four", () => {
+  assert.deepEqual(M.parseWorldClocks("ET:Not/AZone,PT:America/Los_Angeles"), [
+    { label: "PT", zone: "America/Los_Angeles" }
+  ])
+  assert.equal(M.parseWorldClocks("").length, 0)
+  assert.equal(M.parseWorldClocks(null).length, 0)
+  assert.equal(M.parseWorldClocks("A:UTC,B:UTC,C:UTC,D:UTC,E:UTC").length, 4)
+  assert.equal(M.parseWorldClocks("nolabel:America/New_York").length, 0)
+})
+
+test("zoneTimeLabel returns h:mm AM/PM for a valid zone, empty for a bad one", () => {
+  const d = new Date(2026, 9, 18, 16, 22, 0) // local time; zone output varies but shape holds
+  assert.match(M.zoneTimeLabel("America/New_York", d), /^\d{1,2}:\d{2}\u202f?(AM|PM)$|^\d{1,2}:\d{2} (AM|PM)$/)
+  assert.equal(M.zoneTimeLabel("Not/AZone", d), "")
+})
+
+// ---- Countdown timer math
+
+test("formatCountdown renders mm:ss and clamps at zero", () => {
+  assert.equal(M.formatCountdown(0), "00:00")
+  assert.equal(M.formatCountdown(-5000), "00:00")
+  assert.equal(M.formatCountdown(594000), "09:54")
+  assert.equal(M.formatCountdown(3723000), "62:03") // long runs keep counting past an hour
+})
+
+test("stepTimerMinutes clamps to 1..600 and tolerates junk", () => {
+  assert.equal(M.stepTimerMinutes(10, 5), 15)
+  assert.equal(M.stepTimerMinutes(3, -5), 1)
+  assert.equal(M.stepTimerMinutes(598, 5), 600)
+  assert.equal(M.stepTimerMinutes("10", 5), 15)
+})
+
+// ---- Wiring: zones row + timer are actually wired
+
+test("Panel reads worldClocks through Model and renders zone labels", () => {
+  assert.match(panel, /Model\.parseWorldClocks\(setting\("worldClocks", ""\)\)/)
+  assert.match(panel, /Model\.zoneTimeLabel\(zoneDelegate\.modelData\.zone, clock\.date\)/)
+})
+
+test("Panel owns the timer actions and writes exact keys", () => {
+  assert.match(panel, /function timerStep\(delta\)/)
+  assert.match(panel, /function timerToggle\(\)/)
+  assert.match(panel, /function timerReset\(\)/)
+  assert.match(panel, /timerRunning: true/)
+  assert.match(panel, /timerEndsAt: Date\.now\(\) \+ remaining/)
+  assert.match(panel, /timerDoneAt: now/)
+})
+
+test("Panel's fire watcher flips running off and retires the ping", () => {
+  assert.match(panel, /now >= root\.timerEndsAt/)
+  assert.match(panel, /now - root\.timerDoneAt >= 120000/)
+  assert.match(panel, /persistSettings\(\{ timerDoneAt: 0 \}\)/)
+})
+
+test("BarWidget carries the countdown in the label and tolerates string state", () => {
+  assert.match(barWidget, /text: root\.vertical \? "" : \(root\.displayText \+ root\.timerSuffix\)/)
+  assert.match(barWidget, /Model\.formatCountdown\(timerRemainingMs\)/)
+  assert.match(barWidget, /setting\("timerRunning", null\)/)
+  assert.match(barWidget, /value === true \|\| value === "true"/)
+})
+
+test("version moved to 0.2.0 with the feature set named", () => {
+  assert.equal(manifest.version, "0.2.0")
+  assert.match(manifest.description, /world-clock/)
+  assert.match(manifest.description, /countdown timer/)
+})

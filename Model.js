@@ -309,6 +309,58 @@ function applyShowDate(format, showDate) {
   return String(format)
 }
 
+// ---- World clock. Setting shape: "ET:America/New_York,PT:America/Los_Angeles".
+//      Labels stay short (the row is tight); zones are validated by actually
+//      constructing a formatter, so a typo drops that entry instead of
+//      rendering a broken row. Max four — the popup is not a world map.
+function validTimeZone(zone) {
+  try { new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric" }); return true }
+  catch (e) { return false }
+}
+
+function parseWorldClocks(spec) {
+  if (!spec || typeof spec !== "string") return []
+  var out = []
+  var parts = spec.split(",")
+  for (var i = 0; i < parts.length; i++) {
+    var piece = parts[i].replace(/^\s+|\s+$/g, "")
+    if (piece === "") continue
+    var idx = piece.indexOf(":")
+    if (idx < 1) continue
+    var label = piece.slice(0, idx).replace(/^\s+|\s+$/g, "")
+    var zone = piece.slice(idx + 1).replace(/^\s+|\s+$/g, "")
+    if (label === "" || zone === "" || label.length > 5) continue
+    if (out.length >= 4) break
+    if (!validTimeZone(zone)) continue
+    out.push({ label: label, zone: zone })
+  }
+  return out
+}
+
+function zoneTimeLabel(zone, date) {
+  try {
+    var f = new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit", hour12: true })
+    return f.format(date === undefined || date === null ? new Date() : date)
+  } catch (e) { return "" }
+}
+
+// ---- Countdown timer. State lives in the widget entry: timerMinutes is the
+//      idle preset, timerEndsAt/timerRemainingMs carry run/pause, timerDoneAt
+//      stamps the fire so the bar's "done" ping can age out on its own.
+function formatCountdown(ms) {
+  var total = Math.max(0, Math.ceil(ms / 1000))
+  var m = Math.floor(total / 60)
+  var s = total % 60
+  return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s
+}
+
+function stepTimerMinutes(minutes, delta) {
+  var next = (Number(minutes) || 0) + delta
+  if (next < 1) return 1
+  if (next > 600) return 600
+  return next
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     dateKey: dateKey,
@@ -335,6 +387,11 @@ if (typeof module !== "undefined") {
     nextClockFormat: nextClockFormat,
     isoWeekLiteral: isoWeekLiteral,
     stripDateWords: stripDateWords,
-    applyShowDate: applyShowDate
+    applyShowDate: applyShowDate,
+    validTimeZone: validTimeZone,
+    parseWorldClocks: parseWorldClocks,
+    zoneTimeLabel: zoneTimeLabel,
+    formatCountdown: formatCountdown,
+    stepTimerMinutes: stepTimerMinutes
   }
 }

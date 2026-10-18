@@ -4,11 +4,12 @@
 
 Fork of the stock Omarchy clock — the bar label shows the date by default:
 **`Sunday Oct 18 4:20 PM`** instead of `Sunday 4:20 PM`, with a date on/off
-toggle in the calendar popup.
+toggle, an optional world-clock row, and a start/stop countdown timer in the
+calendar popup.
 
 ## What it changes
 
-Two things, everything else is stock:
+Four things, everything else is stock:
 
 1. **The default bar format is `dddd MMM d h:mm AP`** — day name, short
    date, 12-hour time. The format is still a plain setting (right-click the
@@ -17,6 +18,18 @@ Two things, everything else is stock:
    `DATE IN BAR · ON/OFF` pill at the bottom of the calendar. Clicking it
    writes back to `~/.config/omarchy/shell.json` and the bar label changes
    live.
+3. **An optional world-clock row** — labeled times in up to four other
+   zones, right under the date hero. Set `worldClocks` to
+   `ET:America/New_York,PT:America/Los_Angeles` and the popup carries
+   `ET 5:20 PM  PT 2:20 PM`. Unset (default) hides the row. Zones are
+   rendered in-process with `Intl.DateTimeFormat` — no shell-outs, and a
+   zone the engine rejects simply doesn't render.
+4. **A countdown timer in the popup** — `−5M / +5M` steppers (1–600 min),
+   `START / PAUSE / RESUME / RESET`. While it runs, the bar label carries
+   the remaining time (`Sunday Oct 18 4:22 PM · 12:34`); when it fires, the
+   label pings `· done` for two minutes and the popup shows `00:00` until
+   reset. Timer state persists in the widget entry, so a run survives a
+   shell restart.
 
 `showDate: false` masks the date out of *whatever* format the label is in —
 `dddd MMM d h:mm AP` becomes `dddd h:mm AP`, `yyyy-MM-dd HH:mm` becomes
@@ -27,22 +40,22 @@ rather than rendering an empty clock.
 ### CLI
 
 ```sh
-omarchy bar set gdeyoung.timepiece showDate false   # date off
-omarchy bar set gdeyoung.timepiece showDate true    # date back on
+omarchy bar set gdeyoung.timepiece showDate false    # date off
+omarchy bar set gdeyoung.timepiece showDate true     # date back on
 omarchy bar set gdeyoung.timepiece format "dddd MMM d h:mm AP"
+omarchy bar set gdeyoung.timepiece worldClocks "ET:America/New_York,PT:America/Los_Angeles"
 ```
 
 Values written without `--json` land as strings; the plugin reads both
-`false` and `"false"` as false.
+`false` and `"false"` as false, and numbers through `Number()`.
 
 ## Why a fork
 
-The stock clock's default format carries no date, and its format presets
-have no day-name-plus-date entry — the only stock way to get one is a
-hand-written `format` string in shell.json. This fork makes that the default
-and gives it a discoverable toggle. Everything else is upstream code, so
-rebasing onto stock clock updates stays small (Model.js, BarWidget.qml and
-Panel.qml are the only touched files).
+The stock clock's default format carries no date, its format presets have
+no day-name-plus-date entry, and there is no toggle, world clock, or timer.
+Everything else is upstream code, so rebasing onto stock clock updates
+stays small (Model.js, BarWidget.qml and Panel.qml are the only touched
+files).
 
 ## Settings
 
@@ -51,13 +64,17 @@ Panel.qml are the only touched files).
 | `format`     | `dddd MMM d h:mm AP`    | Bar label format (stock ring + right-click cycling still work) |
 | `formatAlt`  | `d MMMM 'W'ww yyyy`     | Alternate format (stock)                  |
 | `showDate`   | `true`                  | Date in the bar label — the popup toggle  |
+| `worldClocks`| *(empty)*               | `LABEL:Zone,LABEL:Zone` row in the popup  |
+| `timerMinutes` | `10`                  | Idle timer preset (1–600)                 |
+| `timerRunning`, `timerEndsAt`, `timerRemainingMs`, `timerDoneAt` | *(transient)* | Live timer state — written by the popup controls, read by the bar |
 | `verticalFormat`, `verticalFormatAlt`, `weekStartDay`, `birthYear`, `lifeExpectancy` | stock | Untouched stock settings |
 
 ## What the plugin runs
 
 Nothing. No external commands, no network, no filesystem access beyond
 Omarchy's own settings read/write API (`shell.setBarWidget` /
-`updateEntryInline`). The unit tests run `node --test test/`.
+`updateEntryInline`). Zone math uses the in-process `Intl` API. The unit
+tests run `node --test test/`.
 
 ## Install
 

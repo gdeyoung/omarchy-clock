@@ -41,6 +41,35 @@ BarWidget {
   readonly property string displayText: formatted(displayDate)
   readonly property var verticalLines: displayText.split("\n")
 
+  // ---- Countdown timer, bar side. The panel owns the controls and the
+  //      state writes; the bar only reads the widget entry and shows what is
+  //      left while it runs — and a short "done" ping after it fires.
+  //      Tolerant readers: `omarchy bar set` writes bare values as strings.
+  readonly property real timerEndsAt: Number(setting("timerEndsAt", 0)) || 0
+  readonly property real timerDoneAt: Number(setting("timerDoneAt", 0)) || 0
+  readonly property bool timerRunning: {
+    var value = setting("timerRunning", null)
+    return value === true || value === "true"
+  }
+  property date timerNow: new Date()
+
+  Timer {
+    interval: 1000
+    // Ticks while counting down AND while the "done" ping is still inside its
+    // two-minute window — otherwise timerNow goes stale and the ping never
+    // ages out. Stops itself the moment the suffix empties.
+    running: root.timerRunning || root.timerSuffix !== ""
+    repeat: true
+    onTriggered: root.timerNow = new Date()
+  }
+
+  readonly property real timerRemainingMs: timerRunning
+    ? Math.max(0, timerEndsAt - timerNow.getTime())
+    : 0
+  readonly property string timerSuffix: timerRunning
+    ? " · " + Model.formatCountdown(timerRemainingMs)
+    : ((timerDoneAt > 0 && timerNow.getTime() - timerDoneAt < 120000) ? " · done" : "")
+
   function refresh() {
     displayDate = new Date()
     if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
@@ -153,7 +182,7 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.vertical ? "" : root.displayText
+    text: root.vertical ? "" : (root.displayText + root.timerSuffix)
     labelVisible: !root.vertical
     hasVisualContent: root.vertical ? root.verticalLines.length > 0 : text !== ""
     fixedHeight: root.vertical ? root.verticalLines.length * Style.bar.iconSlot : -1

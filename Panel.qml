@@ -5,6 +5,50 @@ import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 
+// Small bordered text button for the timer controls, in the same idiom as the
+// DATE IN BAR pill: hairline border, hover fill, bold caption label. Callers
+// pass the panel's foreground and font — an inline component cannot see the
+// instantiating context's root.
+component TimerPill: Rectangle {
+  id: pill
+  property string label: ""
+  property bool prominent: false
+  property color foreground
+  property string fontFamily
+  signal clicked()
+
+  width: pillText.implicitWidth + (prominent ? Style.space(24) : Style.space(16))
+  height: Math.max(pillText.implicitHeight + Style.space(8), Style.space(22))
+  radius: Style.cornerRadius
+  border.width: Style.spacing.hairline
+  border.color: pillMouse.containsMouse
+    ? Style.normalBorderFor(pill.foreground, Commons.Color.accent)
+    : Style.normalBorderFor(pill.foreground, pill.foreground)
+  color: pillMouse.containsMouse
+    ? Style.hoverFillFor(pill.foreground, Commons.Color.accent)
+    : "transparent"
+
+  Text {
+    id: pillText
+    anchors.centerIn: parent
+    textFormat: Text.PlainText
+    text: pill.label
+    color: pill.prominent ? Commons.Color.accent : pill.foreground
+    font.family: pill.fontFamily
+    font.pixelSize: Style.font.caption
+    font.letterSpacing: 1
+    font.bold: true
+  }
+
+  MouseArea {
+    id: pillMouse
+    anchors.fill: parent
+    hoverEnabled: true
+    cursorShape: Qt.PointingHandCursor
+    onClicked: pill.clicked()
+  }
+}
+
 // The clock's calendar popup: a month grid with ISO week numbers, built to
 // sit beside the weather panel — same hero-over-detail composition, same
 // spacing scale, same small-caps labels.
@@ -80,6 +124,78 @@ Panel {
   function toggleShowDate() {
     persistSettings({ showDate: !root.showDate })
   }
+
+  // ---- World clock row: labeled times in other zones, only when configured.
+  //      Setting shape and validation live in Model.parseWorldClocks.
+  readonly property var worldClocks: Model.parseWorldClocks(setting("worldClocks", ""))
+
+  // ---- Countdown timer. The panel owns the controls; state persists in the
+  //      widget entry so a run survives shell restarts. The bar label shows
+  //      the remaining time while running and a "done" ping for two minutes
+  //      after the fire — aging that ping out is this panel's job, since the
+  //      bar only reads.
+  readonly property real timerEndsAt: Number(setting("timerEndsAt", 0)) || 0
+  readonly property real timerRemainingMs: Number(setting("timerRemainingMs", 0)) || 0
+  readonly property real timerDoneAt: Number(setting("timerDoneAt", 0)) || 0
+  readonly property bool timerRunning: {
+    var value = setting("timerRunning", null)
+    return value === true || value === "true"
+  }
+  readonly property int timerMinutes: {
+    var value = Number(setting("timerMinutes", 10))
+    return (value >= 1 && value <= 600) ? Math.round(value) : 10
+  }
+  property date timerNow: new Date()
+
+  readonly property real timerDisplayMs: timerRunning
+    ? Math.max(0, timerEndsAt - timerNow.getTime())
+    : (timerDoneAt > 0 ? 0 : timerRemainingMs)
+
+  function timerStep(delta) {
+    if (root.timerRunning || root.timerDoneAt > 0) return
+    persistSettings({ timerMinutes: Model.stepTimerMinutes(root.timerMinutes, delta), timerRemainingMs: 0 })
+  }
+
+  function timerToggle() {
+    if (root.timerRunning) {
+      persistSettings({
+        timerRunning: false,
+        timerRemainingMs: Math.max(0, root.timerEndsAt - Date.now()),
+        timerDoneAt: 0
+      })
+    } else {
+      if (root.timerDoneAt > 0) { root.timerReset(); return }
+      var remaining = root.timerRemainingMs > 0 ? root.timerRemainingMs : root.timerMinutes * 60000
+      if (remaining <= 0) return
+      persistSettings({
+        timerRunning: true,
+        timerEndsAt: Date.now() + remaining,
+        timerDoneAt: 0
+      })
+    }
+  }
+
+  function timerReset() {
+    persistSettings({ timerRunning: false, timerRemainingMs: 0, timerDoneAt: 0 })
+  }
+
+  // The fire itself: flips running off and stamps the ping. 250 ms while a
+  // run is live is cheap and makes the flip snappy; it also retires the
+  // "done" ping two minutes later so the bar cleans itself up.
+  Timer {
+    interval: 250
+    running: root.timerRunning || root.timerDoneAt > 0
+    repeat: true
+    onTriggered: {
+      root.timerNow = new Date()
+      var now = root.timerNow.getTime()
+      if (root.timerRunning && root.timerEndsAt > 0 && now >= root.timerEndsAt)
+        root.persistSettings({ timerRunning: false, timerRemainingMs: 0, timerDoneAt: now })
+      else if (!root.timerRunning && root.timerDoneAt > 0 && now - root.timerDoneAt >= 120000)
+        root.persistSettings({ timerDoneAt: 0 })
+    }
+  }
+
   // The interface is English throughout, so day names are not taken from the
   // system locale. Where the week starts still is: that is a regional
   // convention rather than a translation, and it stays overridable above.
@@ -356,6 +472,50 @@ Panel {
                 visible: heroMouse.containsMouse
                 text: "Back to today"
                 fontFamily: root.contentFontFamily
+              }
+            }
+          }
+
+          // ---- World clock row: labeled times in other zones, under the
+          //      local date they convert from. Hidden entirely when unset.
+          Item {
+            width: parent.width
+            height: visible ? zonesRow.height : 0
+            visible: root.worldClocks.length > 0
+
+            Row {
+              id: zonesRow
+              anchors.horizontalCenter: parent.horizontalCenter
+              spacing: Style.space(24)
+
+              Repeater {
+                model: root.worldClocks
+
+                Row {
+                  id: zoneDelegate
+                  required property var modelData
+                  spacing: Style.space(7)
+
+                  Text {
+                    anchors.baseline: zoneTime.baseline
+                    textFormat: Text.PlainText
+                    text: zoneDelegate.modelData.label.toUpperCase()
+                    color: Qt.darker(root.contentForeground, 1.5)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                    font.letterSpacing: 1
+                  }
+
+                  Text {
+                    id: zoneTime
+                    textFormat: Text.PlainText
+                    text: Model.zoneTimeLabel(zoneDelegate.modelData.zone, clock.date)
+                    color: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                  }
+                }
               }
             }
           }
@@ -768,6 +928,71 @@ Panel {
                 foreground: root.contentForeground
                 fontFamily: root.contentFontFamily
                 onClicked: root.moveMonth(1)
+              }
+            }
+          }
+
+          // ---- Countdown timer: preset steppers, start/pause, reset. The
+          //      big read is minutes while idle and mm:ss the moment a run
+          //      exists. Borders + bold labels so every control reads as a
+          //      button, not decoration.
+          Item {
+            width: parent.width
+            height: timerRow.height
+
+            Row {
+              id: timerRow
+              anchors.horizontalCenter: parent.horizontalCenter
+              spacing: Style.space(10)
+
+              TimerPill {
+                label: "−5M"
+                foreground: root.contentForeground
+                fontFamily: root.contentFontFamily
+                visible: !root.timerRunning && root.timerDoneAt === 0
+                onClicked: root.timerStep(-5)
+              }
+
+              TimerPill {
+                label: "+5M"
+                foreground: root.contentForeground
+                fontFamily: root.contentFontFamily
+                visible: !root.timerRunning && root.timerDoneAt === 0
+                onClicked: root.timerStep(5)
+              }
+
+              Text {
+                id: timerReadout
+                anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
+                text: root.timerDoneAt > 0
+                  ? "00:00"
+                  : (root.timerRunning || root.timerRemainingMs > 0
+                      ? Model.formatCountdown(root.timerDisplayMs)
+                      : root.timerMinutes + "M")
+                color: root.timerDoneAt > 0
+                  ? Commons.Color.accent
+                  : root.contentForeground
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.body
+                font.letterSpacing: 1
+                font.bold: true
+              }
+
+              TimerPill {
+                label: root.timerRunning ? "PAUSE" : (root.timerDoneAt > 0 ? "RESET" : (root.timerRemainingMs > 0 ? "RESUME" : "START"))
+                prominent: true
+                foreground: root.contentForeground
+                fontFamily: root.contentFontFamily
+                onClicked: root.timerToggle()
+              }
+
+              TimerPill {
+                label: "RESET"
+                foreground: root.contentForeground
+                fontFamily: root.contentFontFamily
+                visible: !root.timerRunning && root.timerRemainingMs > 0 && root.timerDoneAt === 0
+                onClicked: root.timerReset()
               }
             }
           }
