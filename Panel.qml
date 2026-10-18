@@ -189,10 +189,9 @@ Panel {
     })
   }
 
-  // Applies the next phase immediately (also the fire path: when now >=
-  // pomodoroEndsAt the watcher calls this). notify=true only on a natural
-  // phase fire — a manual skip does not get a notification.
-  function pomodoroAdvance(notify) {
+  // SKIP: apply the next phase now. The natural fire path lives in the bar
+  // widget (mounted all session); this is the manual, popup-open path.
+  function pomodoroAdvance() {
     var next = Model.nextPomodoroPhase(root.pomodoroMode, root.pomodoroCyclesDone, root.pomodoroFocusMin, root.pomodoroBreakMin)
     if (!next) { root.pomodoroStop(); return }
     persistSettings({
@@ -200,23 +199,10 @@ Panel {
       pomodoroEndsAt: Date.now() + next.minutes * 60000,
       pomodoroCyclesDone: next.cyclesDone
     })
-    if (notify) pomodoroNotify(next.mode)
   }
 
   function pomodoroStop() {
     persistSettings({ pomodoroMode: "off", pomodoroEndsAt: 0 })
-  }
-
-  function pomodoroNotify(mode) {
-    // The plugin's one user-visible side effect: a desktop notification per
-    // phase fire (omarchy's own sender, rate-limited by nature — one call).
-    var title = mode === "focus" ? "Focus time" : (mode === "longbreak" ? "Long break" : "Break time")
-    var body = mode === "focus"
-      ? root.pomodoroFocusMin + " min focus block — go."
-      : (mode === "longbreak" ? Model.POMODORO_LONG_BREAK_MIN : root.pomodoroBreakMin) + " min break."
-    if (pomodoroProc.running) pomodoroProc.running = false
-    pomodoroProc.command = ["omarchy-notification-send", title, body]
-    pomodoroProc.running = true
   }
 
   function pomodoroStep(delta, which) {
@@ -229,11 +215,6 @@ Panel {
     else persistSettings({ pomodoroFocusMin: value })
   }
 
-  Process {
-    id: pomodoroProc
-    command: ["true"]
-  }
-
   // The fire itself: flips running off and stamps the ping. 250 ms while a
   // run is live is cheap and makes the flip snappy; it also retires the
   // "done" ping two minutes later so the bar cleans itself up.
@@ -241,19 +222,10 @@ Panel {
     interval: 250
     running: root.timerRunning || root.timerDoneAt > 0 || root.pomodoroActive
     repeat: true
-    onTriggered: {
-      root.timerNow = new Date()
-      var now = root.timerNow.getTime()
-      // Pomodoro owns the clock while it is active — a phase fire advances
-      // to the next phase (with notification) rather than ringing once.
-      if (root.pomodoroActive && root.pomodoroEndsAt > 0 && now >= root.pomodoroEndsAt) {
-        root.pomodoroAdvance(true)
-      }
-      else if (root.timerRunning && root.timerEndsAt > 0 && now >= root.timerEndsAt)
-        root.persistSettings({ timerRunning: false, timerRemainingMs: 0, timerDoneAt: now })
-      else if (!root.timerRunning && root.timerDoneAt > 0 && now - root.timerDoneAt >= 120000)
-        root.persistSettings({ timerDoneAt: 0 })
-    }
+    // Fires (pomodoro flips, the manual timer's done, the ping aging) are
+    // owned by the BAR widget, which is mounted all session — this panel
+    // exists only while open. This timer just keeps the readout ticking.
+    onTriggered: root.timerNow = new Date()
   }
 
   // The interface is English throughout, so day names are not taken from the
@@ -1063,7 +1035,7 @@ Panel {
                 foreground: root.contentForeground
                 fontFamily: root.contentFontFamily
                 visible: root.pomodoroActive
-                onClicked: root.pomodoroAdvance(false)
+                onClicked: root.pomodoroAdvance()
               }
 
               TimerPill {

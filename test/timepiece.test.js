@@ -226,13 +226,14 @@ test("Panel owns the timer actions and writes exact keys", () => {
   assert.match(panel, /function timerReset\(\)/)
   assert.match(panel, /timerRunning: true/)
   assert.match(panel, /timerEndsAt: Date\.now\(\) \+ remaining/)
-  assert.match(panel, /timerDoneAt: now/)
+  assert.match(barWidget, /timerRunning: false, timerRemainingMs: 0, timerDoneAt: now/)
 })
 
-test("Panel's fire watcher flips running off and retires the ping", () => {
-  assert.match(panel, /now >= root\.timerEndsAt/)
-  assert.match(panel, /now - root\.timerDoneAt >= 120000/)
-  assert.match(panel, /persistSettings\(\{ timerDoneAt: 0 \}\)/)
+test("Fires live in the always-mounted bar, not the popup-only panel", () => {
+  assert.match(barWidget, /now >= timerEndsAt/)
+  assert.match(barWidget, /now - timerDoneAt >= 120000/)
+  assert.match(barWidget, /saveSettings\(\{ timerDoneAt: 0 \}\)/)
+  assert.doesNotMatch(panel, /now >= root\.timerEndsAt/) // panel can't fire — it may not exist
 })
 
 test("BarWidget carries the countdown in the label and tolerates string state", () => {
@@ -269,9 +270,12 @@ test("pomodoro wiring: exclusive modes, watcher owns the fire, notify on natural
   assert.match(panel, /function pomodoroStart\(\)/)
   assert.match(panel, /timerRunning: false, timerRemainingMs: 0, timerDoneAt: 0,\n      pomodoroMode: "focus"/)
   assert.match(panel, /if \(root\.pomodoroActive\) \{ root\.pomodoroStop\(\) \} \/\/ modes are exclusive/)
-  assert.match(panel, /running: root\.timerRunning \|\| root\.timerDoneAt > 0 \|\| root\.pomodoroActive/)
-  assert.match(panel, /root\.pomodoroAdvance\(true\)/)
-  assert.match(panel, /pomodoroProc\.command = \["omarchy-notification-send", title, body\]/)
+  assert.match(barWidget, /function checkFires\(now\)/)
+  assert.match(barWidget, /root\.checkFires\(root\.timerNow\.getTime\(\)\)/)
+  assert.match(barWidget, /pomodoroMode !== "off" && pomodoroEndsAt > 0 && now >= pomodoroEndsAt/)
+  assert.match(barWidget, /pomoNotifyProc\.command = \["omarchy-notification-send", title, body\]/)
+  assert.match(barWidget, /function saveSettings\(patch\)/)
+  assert.doesNotMatch(panel, /pomodoroAdvance\(true\)/) // the panel never fires on its own — it exists only while open
   assert.match(panel, /POMODORO " \+ root\.pomodoroFocusMin \+ "\/" \+ root\.pomodoroBreakMin/)
   assert.match(barWidget, /pomodoroMode !== "off" && pomodoroEndsAt > 0/)
   assert.match(barWidget, /Model\.pomodoroBarSuffix\(pomodoroMode, pomodoroRemainingMs\)/)

@@ -60,7 +60,10 @@ BarWidget {
     // ages out. Stops itself the moment the suffix empties.
     running: root.timerRunning || root.timerSuffix !== "" || root.pomodoroMode !== "off"
     repeat: true
-    onTriggered: root.timerNow = new Date()
+    onTriggered: {
+      root.timerNow = new Date()
+      root.checkFires(root.timerNow.getTime())
+    }
   }
 
   readonly property real timerRemainingMs: timerRunning
@@ -72,6 +75,9 @@ BarWidget {
   }
   readonly property real pomodoroEndsAt: Number(setting("pomodoroEndsAt", 0)) || 0
   readonly property real pomodoroRemainingMs: Math.max(0, pomodoroEndsAt - timerNow.getTime())
+  readonly property int pomodoroCyclesDone: Number(setting("pomodoroCyclesDone", 0)) || 0
+  readonly property int pomodoroFocusMin: Model.clampPomodoroMinutes(setting("pomodoroFocusMin", 25), 25, 1, 120)
+  readonly property int pomodoroBreakMin: Model.clampPomodoroMinutes(setting("pomodoroBreakMin", 5), 5, 1, 60)
 
   readonly property string timerSuffix: pomodoroMode !== "off" && pomodoroEndsAt > 0
     ? " · " + Model.pomodoroBarSuffix(pomodoroMode, pomodoroRemainingMs)
@@ -82,6 +88,48 @@ BarWidget {
   function refresh() {
     displayDate = new Date()
     if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
+  }
+
+  // ---- Fires live HERE, not in the popup: the bar widget is mounted the
+  //      whole session, while the panel exists only once opened — a fire
+  //      that depends on the panel being open silently never happens.
+  //      Dual-bar setups race a same-value write at worst (and maybe a
+  //      duplicate toast); state stays correct either way.
+  function saveSettings(patch) {
+    var entry = { id: root.moduleName }
+    for (var k in root.settings) if (k !== "id") entry[k] = root.settings[k]
+    for (var p in patch) entry[p] = patch[p]
+    root.settings = entry
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+      root.bar.shell.updateEntryInline(root.moduleName, entry)
+  }
+
+  function checkFires(now) {
+    if (pomodoroMode !== "off" && pomodoroEndsAt > 0 && now >= pomodoroEndsAt) {
+      var next = Model.nextPomodoroPhase(pomodoroMode, pomodoroCyclesDone, pomodoroFocusMin, pomodoroBreakMin)
+      if (!next) { saveSettings({ pomodoroMode: "off", pomodoroEndsAt: 0 }); return }
+      saveSettings({ pomodoroMode: next.mode, pomodoroEndsAt: now + next.minutes * 60000, pomodoroCyclesDone: next.cyclesDone })
+      notifyPhase(next.mode)
+    }
+    else if (timerRunning && timerEndsAt > 0 && now >= timerEndsAt)
+      saveSettings({ timerRunning: false, timerRemainingMs: 0, timerDoneAt: now })
+    else if (!timerRunning && timerDoneAt > 0 && now - timerDoneAt >= 120000)
+      saveSettings({ timerDoneAt: 0 })
+  }
+
+  Process {
+    id: pomoNotifyProc
+    command: ["true"]
+  }
+
+  function notifyPhase(mode) {
+    var title = mode === "focus" ? "Focus time" : (mode === "longbreak" ? "Long break" : "Break time")
+    var body = mode === "focus"
+      ? pomodoroFocusMin + " min focus block — go."
+      : (mode === "longbreak" ? Model.POMODORO_LONG_BREAK_MIN : pomodoroBreakMin) + " min break."
+    if (pomoNotifyProc.running) pomoNotifyProc.running = false
+    pomoNotifyProc.command = ["omarchy-notification-send", title, body]
+    pomoNotifyProc.running = true
   }
 
   function cycleFormat() {
