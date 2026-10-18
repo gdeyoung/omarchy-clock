@@ -128,9 +128,11 @@ test("stepTimerMinutes clamps to 1..600 and tolerates junk", () => {
 
 // ---- Wiring: zones row + timer are actually wired
 
-test("Panel reads worldClocks through Model and renders zone labels", () => {
+test("Panel reads worldClocks through Model and renders zone times via date", () => {
   assert.match(panel, /Model\.parseWorldClocks\(setting\("worldClocks", ""\)\)/)
-  assert.match(panel, /Model\.zoneTimeLabel\(zoneDelegate\.modelData\.zone, clock\.date\)/)
+  assert.match(panel, /command: \["date", "\+%-%I:%M %p"\]/)
+  assert.match(panel, /environment: \(\{ "TZ": zoneDelegate\.modelData\.zone \}\)/)
+  assert.match(panel, /\^\[0-9\]\{1,2\}:\[0-9\]\{2\} \(AM\|PM\)\$/) // output validated before display
 })
 
 test("Panel owns the timer actions and writes exact keys", () => {

@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
@@ -434,6 +435,10 @@ Panel {
 
           // ---- World clock row: labeled times in other zones, under the
           //      local date they convert from. Hidden entirely when unset.
+          //      The QML engine has no Intl/timezone support, so each zone
+          //      is one read-only `date` call a minute — the only external
+          //      command the plugin runs, and its output is validated
+          //      against the h:mm AM/PM shape before it is shown.
           Item {
             width: parent.width
             height: visible ? zonesRow.height : 0
@@ -450,10 +455,33 @@ Panel {
                 Row {
                   id: zoneDelegate
                   required property var modelData
+                  property string zoneTime: ""
+                  property date minuteTick: clock.date
                   spacing: Style.space(7)
 
+                  function refreshZone() {
+                    if (zoneProc.running) zoneProc.running = false
+                    zoneProc.running = true
+                  }
+
+                  Component.onCompleted: refreshZone()
+                  onMinuteTickChanged: refreshZone()
+
+                  Process {
+                    id: zoneProc
+                    command: ["date", "+%-I:%M %p"]
+                    environment: ({ "TZ": zoneDelegate.modelData.zone })
+                    stdout: StdioCollector {
+                      waitForEnd: true
+                      onStreamFinished: {
+                        var t = String(text).replace(/^\s+|\s+$/g, "")
+                        zoneDelegate.zoneTime = /^[0-9]{1,2}:[0-9]{2} (AM|PM)$/.test(t) ? t : ""
+                      }
+                    }
+                  }
+
                   Text {
-                    anchors.baseline: zoneTime.baseline
+                    anchors.baseline: zoneTimeText.baseline
                     textFormat: Text.PlainText
                     text: zoneDelegate.modelData.label.toUpperCase()
                     color: Qt.darker(root.contentForeground, 1.5)
@@ -463,9 +491,9 @@ Panel {
                   }
 
                   Text {
-                    id: zoneTime
+                    id: zoneTimeText
                     textFormat: Text.PlainText
-                    text: Model.zoneTimeLabel(zoneDelegate.modelData.zone, clock.date)
+                    text: zoneDelegate.zoneTime === "" ? "—" : zoneDelegate.zoneTime
                     color: root.contentForeground
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.body

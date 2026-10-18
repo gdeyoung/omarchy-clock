@@ -21,9 +21,10 @@ Four things, everything else is stock:
 3. **An optional world-clock row** — labeled times in up to four other
    zones, right under the date hero. Set `worldClocks` to
    `ET:America/New_York,PT:America/Los_Angeles` and the popup carries
-   `ET 5:20 PM  PT 2:20 PM`. Unset (default) hides the row. Zones are
-   rendered in-process with `Intl.DateTimeFormat` — no shell-outs, and a
-   zone the engine rejects simply doesn't render.
+   `ET 5:20 PM  PT 2:20 PM`. Unset (default) hides the row. The QML engine
+   has no timezone support, so each configured zone costs one read-only
+   `TZ=<zone> date +%–%I:%M %p` call per minute, and the output is
+   validated before it is shown.
 4. **A countdown timer in the popup** — `−5M / +5M` steppers (1–600 min),
    `START / PAUSE / RESUME / RESET`. While it runs, the bar label carries
    the remaining time (`Sunday Oct 18 4:22 PM · 12:34`); when it fires, the
@@ -71,10 +72,12 @@ files).
 
 ## What the plugin runs
 
-Nothing. No external commands, no network, no filesystem access beyond
-Omarchy's own settings read/write API (`shell.setBarWidget` /
-`updateEntryInline`). Zone math uses the in-process `Intl` API. The unit
-tests run `node --test test/`.
+One thing, by design: `date` (coreutils, read-only) — one call per
+configured world-clock zone per minute, as `TZ=<zone> date +%-I:%M %p`, with
+the output shape-validated before display. No network, no package manager,
+no writes anywhere outside Omarchy's own settings API
+(`shell.setBarWidget` / `updateEntryInline`). The unit tests run
+`node --test test/`.
 
 ## Install
 
