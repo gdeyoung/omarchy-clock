@@ -1159,10 +1159,10 @@ Panel {
             // never jumps when state changes (Fitts + Gestalt proximity).
             Item {
               width: parent.width
-              height: heroRow.height
+              height: timerHeroRow.height
 
               Row {
-                id: heroRow
+                id: timerHeroRow
                 anchors.horizontalCenter: parent.horizontalCenter
                 spacing: Style.space(12)
 
