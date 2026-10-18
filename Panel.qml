@@ -947,16 +947,31 @@ Panel {
           }
 
           // ---- Countdown timer: preset steppers, start/pause, reset. The
-          //      big read is minutes while idle and mm:ss the moment a run
-          //      exists. Borders + bold labels so every control reads as a
-          //      button, not decoration.
+          //      section label says what this row is — bare steppers read
+          //      as decoration, and "timer or alarm?" was a fair question.
+          //      The big read is minutes while idle and mm:ss the moment a
+          //      run exists. Borders + bold labels so every control reads
+          //      as a button, not decoration.
           Item {
             width: parent.width
-            height: timerRow.height
+            height: timerLabelRow.height + Style.space(6) + timerRow.height
+
+            Text {
+              id: timerLabelRow
+              anchors.horizontalCenter: parent.horizontalCenter
+              textFormat: Text.PlainText
+              text: root.timerRunning || root.timerDoneAt > 0 ? "TIMER · RUNNING" : "TIMER"
+              color: Qt.darker(root.contentForeground, 1.5)
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption
+              font.letterSpacing: 2
+            }
 
             Row {
               id: timerRow
               anchors.horizontalCenter: parent.horizontalCenter
+              anchors.top: timerLabelRow.bottom
+              anchors.topMargin: Style.space(6)
               spacing: Style.space(10)
 
               TimerPill {

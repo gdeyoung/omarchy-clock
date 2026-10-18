@@ -216,6 +216,10 @@ test("Panel still owns zone add/remove through zonesToString", () => {
   assert.doesNotMatch(panel, /zonesPickerCol/)
 })
 
+test("Popup timer row is labeled — reads as a timer, not mystery steppers", () => {
+  assert.match(panel, /text: root\.timerRunning \|\| root\.timerDoneAt > 0 \? "TIMER · RUNNING" : "TIMER"/)
+})
+
 test("Panel owns the timer actions and writes exact keys", () => {
   assert.match(panel, /function timerStep\(delta\)/)
   assert.match(panel, /function timerToggle\(\)/)
