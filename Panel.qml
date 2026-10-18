@@ -540,6 +540,7 @@ Panel {
                 Row {
                   id: zoneDelegate
                   required property var modelData
+                  required property int index
                   property string zoneTime: ""
                   property date minuteTick: clock.date
                   spacing: Style.space(7)
@@ -569,8 +570,8 @@ Panel {
                     anchors.baseline: zoneTimeText.baseline
                     textFormat: Text.PlainText
                     text: zoneDelegate.modelData.label
-                    color: typeof index !== "undefined" && index < root.tzHues.length
-                      ? root.tzHues[index]
+                    color: zoneDelegate.index < root.tzHues.length
+                      ? root.tzHues[zoneDelegate.index]
                       : Qt.darker(root.contentForeground, 1.5)
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.caption
