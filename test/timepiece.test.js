@@ -94,8 +94,14 @@ test("parseWorldClocks parses label:zone pairs, comma separated", () => {
   ])
 })
 
-test("parseWorldClocks drops bad zones, empty pieces, and caps at four", () => {
+test("parseWorldClocks keeps structurally plausible zones, drops garbage, caps at four", () => {
+  // A zone name that LOOKS like a zone parses — the date call at render time
+  // is what catches a real typo (shows —). Structural garbage is dropped here.
   assert.deepEqual(M.parseWorldClocks("ET:Not/AZone,PT:America/Los_Angeles"), [
+    { label: "ET", zone: "Not/AZone" },
+    { label: "PT", zone: "America/Los_Angeles" }
+  ])
+  assert.deepEqual(M.parseWorldClocks("ET:noslashzone,PT:America/Los_Angeles"), [
     { label: "PT", zone: "America/Los_Angeles" }
   ])
   assert.equal(M.parseWorldClocks("").length, 0)
@@ -104,10 +110,13 @@ test("parseWorldClocks drops bad zones, empty pieces, and caps at four", () => {
   assert.equal(M.parseWorldClocks("nolabel:America/New_York").length, 0)
 })
 
-test("zoneTimeLabel returns h:mm AM/PM for a valid zone, empty for a bad one", () => {
-  const d = new Date(2026, 9, 18, 16, 22, 0) // local time; zone output varies but shape holds
-  assert.match(M.zoneTimeLabel("America/New_York", d), /^\d{1,2}:\d{2}\u202f?(AM|PM)$|^\d{1,2}:\d{2} (AM|PM)$/)
-  assert.equal(M.zoneTimeLabel("Not/AZone", d), "")
+test("plausibleTimeZone accepts IANA shapes and fixed offsets, rejects junk", () => {
+  assert.equal(M.plausibleTimeZone("America/New_York"), true)
+  assert.equal(M.plausibleTimeZone("Europe/London"), true)
+  assert.equal(M.plausibleTimeZone("Etc/GMT+5"), true)
+  assert.equal(M.plausibleTimeZone("UTC"), true)
+  assert.equal(M.plausibleTimeZone("Not a zone!"), false)
+  assert.equal(M.plausibleTimeZone(""), false)
 })
 
 // ---- Countdown timer math
