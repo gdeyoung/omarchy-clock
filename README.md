@@ -31,14 +31,26 @@ Four things, everything else is stock:
    label pings `· done` for two minutes and the popup shows `00:00` until
    reset. Timer state persists in the widget entry, so a run survives a
    shell restart.
-5. **A pomodoro mode** — one click on `POMODORO 25/5` runs the classic cycle
-   unattended: focus blocks alternate with breaks, every 4th break is a
-   long one (15 min), and each phase flip fires a desktop notification
+5. **A pomodoro mode** — `START CYCLE` runs the classic pomodoro unattended:
+   focus blocks alternate with breaks, every 4th break is a long one
+   (15 min), and each phase flip fires a desktop notification
    (`omarchy-notification-send`). The bar shows phase + remaining time
-   (`· F 17:32`, `· B 3:10`, `· L 14:59`); the popup shows `FOCUS · 2 OF 4`
-   with `SKIP →` and `STOP`. Focus and break lengths are steppers in the
-   settings view. The manual timer and pomodoro are mutually exclusive —
-   starting one stops the other.
+   (`· F 17:32`, `· B 3:10`, `· L 14:59`). Focus and break lengths are
+   steppers in the settings view. The manual timer and pomodoro are mutually
+   exclusive — starting one stops the other.
+6. **A redesigned timer section** (v0.5, spec in `design/timer-ux-spec.md`)
+   — the readout *is* the section: a 24px `mm:ss` hero flanked by `−5M/+5M`
+   steppers in fixed slots, `TIMER | POMODORO` mode tabs while idle
+   (hidden while anything runs — mutual exclusion made visible), a thin
+   remaining-time phase bar, a 4-segment rail for the set (accent = focus
+   blocks done, half-alpha = in progress), and phase coloring always
+   co-coded with the phase word (WCAG 1.4.1): focus = theme accent,
+   break = green, long break = violet, done = urgent. Digits stay
+   foreground in every state.
+7. **World-clock label hues** — each configured zone gets a stable
+   categorical color on its label (cyan, amber, rose, blue, orange); the
+   time itself stays foreground. Greens/violets are deliberately excluded
+   so zones never read as pomodoro phases.
 
 `showDate: false` masks the date out of *whatever* format the label is in —
 `dddd MMM d h:mm AP` becomes `dddd h:mm AP`, `yyyy-MM-dd HH:mm` becomes
