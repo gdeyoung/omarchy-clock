@@ -10,6 +10,7 @@ const barWidget = read("BarWidget.qml")
 const panel = read("Panel.qml")
 const manifest = JSON.parse(read("manifest.json"))
 const settings = read("SettingsView.qml")
+const pill = read("TimerPill.qml")
 
 // ---- Model.applyShowDate: the date mask
 
@@ -217,7 +218,9 @@ test("Panel still owns zone add/remove through zonesToString", () => {
 })
 
 test("Popup timer row is labeled — reads as a timer, not mystery steppers", () => {
-  assert.match(panel, /\? "TIMER · RUNNING" : "TIMER"/) // now inside the pomodoro-aware ternary
+  assert.match(panel, /TIMER \u00b7 DONE/)
+  assert.match(panel, /TIMER \u00b7 RUNNING/)
+  assert.match(panel, /TIMER \u00b7 PAUSED/)
 })
 
 test("Panel owns the timer actions and writes exact keys", () => {
@@ -244,7 +247,7 @@ test("BarWidget carries the countdown in the label and tolerates string state", 
 })
 
 test("version moved to 0.4.0 with the feature set named", () => {
-  assert.equal(manifest.version, "0.4.0")
+  assert.equal(manifest.version, "0.5.0")
   assert.match(manifest.description, /settings view/)
   assert.match(manifest.description, /countdown timer/)
   assert.match(manifest.description, /pomodoro/)
@@ -276,9 +279,32 @@ test("pomodoro wiring: exclusive modes, watcher owns the fire, notify on natural
   assert.match(barWidget, /pomoNotifyProc\.command = \["omarchy-notification-send", title, body\]/)
   assert.match(barWidget, /function saveSettings\(patch\)/)
   assert.doesNotMatch(panel, /pomodoroAdvance\(true\)/) // the panel never fires on its own — it exists only while open
-  assert.match(panel, /POMODORO " \+ root\.pomodoroFocusMin \+ "\/" \+ root\.pomodoroBreakMin/)
+  assert.match(panel, /START CYCLE/)
+  assert.match(panel, /FOCUS " \+ root\.pomodoroFocusMin/)
   assert.match(barWidget, /pomodoroMode !== "off" && pomodoroEndsAt > 0/)
   assert.match(barWidget, /Model\.pomodoroBarSuffix\(pomodoroMode, pomodoroRemainingMs\)/)
   assert.match(settings, /POMODORO/)
   assert.match(settings, /clockPanel\.pomodoroStep\(5, "focus"\)/)
+})
+
+
+test("v0.5 timer section redesign pins (spec: design/timer-ux-spec.md)", () => {
+  assert.match(panel, /font\.pixelSize: Style\.font\.display/)
+  assert.match(panel, /text: Model\.formatCountdown\(timerSection\.remainingMs\)/)
+  assert.match(panel, /property string timerTab: "manual"/)
+  assert.match(panel, /onClicked: root\.timerTab = "pomo"/)
+  assert.match(panel, /visible: timerSection\.idleOnly/)
+  assert.match(panel, /"#9ece6a"/)
+  assert.match(panel, /"#bb9af7"/)
+  assert.match(panel, /property color phaseColor/)
+  assert.match(panel, /width: parent\.width \* timerSection\.phaseFraction/)
+  assert.match(panel, /model: Model\.POMODORO_CYCLE/)
+  assert.match(panel, /if \(modelData <= done\) return Commons\.Color\.accent/)
+  assert.match(panel, /width: Style\.space\(52\)/)
+  assert.match(panel, /dimmed: !timerSection\.idleOnly/)
+  assert.match(pill, /property color toneColor: Commons\.Color\.accent/)
+  assert.match(pill, /property bool dimmed: false/)
+  assert.match(pill, /enabled: !pill\.dimmed/)
+  assert.match(panel, /property var tzHues: \["#7dcfff", "#e0af68", "#f7768e", "#7aa2f7", "#ff9e64"\]/)
+  assert.match(panel, /index < root\.tzHues\.length/)
 })

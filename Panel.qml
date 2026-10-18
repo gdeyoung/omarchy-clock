@@ -180,6 +180,15 @@ Panel {
   readonly property int pomodoroBreakMin: Model.clampPomodoroMinutes(setting("pomodoroBreakMin", 5), 5, 1, 60)
   readonly property bool pomodoroActive: pomodoroMode !== "off"
 
+  // In-memory mode tab for the timer section's idle state. NEVER persisted:
+  // config does not migrate back into the read-only popup.
+  property string timerTab: "manual"
+
+  // Categorical identity hues for the world-clock labels ( Gestalt
+  // similarity: stable arbitrary marks, one per slot). Deliberately no
+  // green/violet, so zones never masquerade as pomodoro phases.
+  property var tzHues: ["#7dcfff", "#e0af68", "#f7768e", "#7aa2f7", "#ff9e64"]
+
   function pomodoroStart() {
     persistSettings({
       timerRunning: false, timerRemainingMs: 0, timerDoneAt: 0,
@@ -560,7 +569,9 @@ Panel {
                     anchors.baseline: zoneTimeText.baseline
                     textFormat: Text.PlainText
                     text: zoneDelegate.modelData.label
-                    color: Qt.darker(root.contentForeground, 1.5)
+                    color: typeof index !== "undefined" && index < root.tzHues.length
+                      ? root.tzHues[index]
+                      : Qt.darker(root.contentForeground, 1.5)
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.caption
                     font.letterSpacing: 1
@@ -992,121 +1003,358 @@ Panel {
             }
           }
 
-          // ---- Countdown timer: preset steppers, start/pause, reset. The
-          //      section label says what this row is — bare steppers read
-          //      as decoration, and "timer or alarm?" was a fair question.
-          //      The big read is minutes while idle and mm:ss the moment a
-          //      run exists. Borders + bold labels so every control reads
-          //      as a button, not decoration.
-          Item {
+          // ---- Timer section, redesigned per design/timer-ux-spec.md:
+          //      the readout IS the section. A 24px mm:ss hero (minutes-only
+          //      "10M" read as a third button), mode tabs while idle, a
+          //      remaining-time phase bar, a 4-segment rail for the set.
+          //      Phase color is always co-coded with the phase word
+          //      (WCAG 1.4.1); digits stay foreground in every state.
+          Column {
+            id: timerSection
             width: parent.width
-            height: timerLabelRow.height + Style.space(6) + timerRow.height
+            spacing: Style.space(6)
 
-            Text {
-              id: timerLabelRow
-              anchors.horizontalCenter: parent.horizontalCenter
-              textFormat: Text.PlainText
-              text: root.pomodoroActive
-                ? Model.pomodoroPhaseLabel(root.pomodoroMode)
-                  + (root.pomodoroMode === "focus"
-                      ? " · " + ((root.pomodoroCyclesDone % Model.POMODORO_CYCLE) + 1) + " OF " + Model.POMODORO_CYCLE
-                      : "")
-                : (root.timerRunning || root.timerDoneAt > 0 ? "TIMER · RUNNING" : "TIMER")
-              color: root.pomodoroActive && root.pomodoroMode !== "focus"
-                ? Commons.Color.accent
-                : Qt.darker(root.contentForeground, 1.5)
-              font.family: root.contentFontFamily
-              font.pixelSize: Style.font.caption
-              font.letterSpacing: 2
+            property bool idleOnly: !root.timerRunning && root.timerDoneAt === 0
+              && root.timerRemainingMs === 0 && !root.pomodoroActive
+            property color breakHue: "#9ece6a"
+            property color longBreakHue: "#bb9af7"
+            property color phaseColor: root.pomodoroActive
+              ? (root.pomodoroMode === "focus" ? Commons.Color.accent
+                : (root.pomodoroMode === "longbreak" ? longBreakHue : breakHue))
+              : (root.timerDoneAt > 0 ? Commons.Color.urgent : Commons.Color.accent)
+            property int phaseTotalMin: {
+              if (root.pomodoroActive)
+                return root.pomodoroMode === "focus" ? root.pomodoroFocusMin
+                  : (root.pomodoroMode === "longbreak" ? Model.POMODORO_LONG_BREAK_MIN : root.pomodoroBreakMin)
+              if (idleOnly && root.timerTab === "pomo")
+                return root.pomodoroFocusMin
+              return root.timerMinutes
             }
+            property real remainingMs: {
+              if (root.pomodoroActive)
+                return Math.max(0, root.pomodoroEndsAt - root.timerNow.getTime())
+              if (idleOnly)
+                return (root.timerTab === "pomo" ? root.pomodoroFocusMin : root.timerMinutes) * 60000
+              if (root.timerDoneAt > 0)
+                return 0
+              return root.timerDisplayMs
+            }
+            property real phaseFraction: phaseTotalMin > 0
+              ? Math.min(1, remainingMs / (phaseTotalMin * 60000)) : 0
 
-            Row {
-              id: timerRow
-              anchors.horizontalCenter: parent.horizontalCenter
-              anchors.top: timerLabelRow.bottom
-              anchors.topMargin: Style.space(6)
-              spacing: Style.space(10)
-
-              // ---- Pomodoro controls own the row while it runs: SKIP
-              //      advances the phase now, STOP exits to idle.
-              TimerPill {
-                label: "SKIP →"
-                prominent: true
-                foreground: root.contentForeground
-                fontFamily: root.contentFontFamily
-                visible: root.pomodoroActive
-                onClicked: root.pomodoroAdvance()
-              }
-
-              TimerPill {
-                label: "STOP"
-                foreground: root.contentForeground
-                fontFamily: root.contentFontFamily
-                visible: root.pomodoroActive
-                onClicked: root.pomodoroStop()
-              }
-
-              TimerPill {
-                label: "−5M"
-                foreground: root.contentForeground
-                fontFamily: root.contentFontFamily
-                visible: !root.timerRunning && root.timerDoneAt === 0 && !root.pomodoroActive
-                onClicked: root.timerStep(-5)
-              }
-
-              TimerPill {
-                label: "+5M"
-                foreground: root.contentForeground
-                fontFamily: root.contentFontFamily
-                visible: !root.timerRunning && root.timerDoneAt === 0 && !root.pomodoroActive
-                onClicked: root.timerStep(5)
-              }
+            Item {
+              width: parent.width
+              height: sectionTitle.implicitHeight
 
               Text {
-                id: timerReadout
-                anchors.verticalCenter: parent.verticalCenter
+                id: sectionTitle
+                anchors.left: parent.left
                 textFormat: Text.PlainText
                 text: root.pomodoroActive
-                  ? Model.formatCountdown(Math.max(0, root.pomodoroEndsAt - root.timerNow.getTime()))
-                  : (root.timerDoneAt > 0
-                      ? "00:00"
-                      : (root.timerRunning || root.timerRemainingMs > 0
-                          ? Model.formatCountdown(root.timerDisplayMs)
-                          : root.timerMinutes + "M"))
-                color: root.pomodoroActive
-                  ? (root.pomodoroMode === "focus" ? root.contentForeground : Commons.Color.accent)
-                  : (root.timerDoneAt > 0 ? Commons.Color.accent : root.contentForeground)
+                  ? Model.pomodoroPhaseLabel(root.pomodoroMode)
+                    + " · " + (root.pomodoroMode === "focus"
+                      ? (root.pomodoroCyclesDone % Model.POMODORO_CYCLE) + 1
+                      : Math.min(root.pomodoroCyclesDone, Model.POMODORO_CYCLE))
+                    + " OF " + Model.POMODORO_CYCLE
+                  : (root.timerDoneAt > 0 ? "TIMER · DONE"
+                    : (root.timerRunning ? "TIMER · RUNNING"
+                      : (root.timerRemainingMs > 0 && root.timerDoneAt === 0 ? "TIMER · PAUSED"
+                        : (root.timerTab === "pomo" ? "POMODORO" : "TIMER"))))
+                color: root.pomodoroActive ? timerSection.phaseColor : Qt.darker(root.contentForeground, 1.5)
                 font.family: root.contentFontFamily
-                font.pixelSize: Style.font.body
+                font.pixelSize: Style.font.caption
+                font.letterSpacing: 2
+              }
+
+              Rectangle {
+                anchors.left: sectionTitle.right
+                anchors.leftMargin: Style.space(8)
+                anchors.verticalCenter: sectionTitle.verticalCenter
+                width: Style.space(2) * 2
+                height: Style.space(2) * 2
+                radius: Style.space(2)
+                visible: !timerSection.idleOnly
+                color: timerSection.phaseColor
+
+                SequentialAnimation on opacity {
+                  running: root.timerDoneAt > 0
+                  loops: Animation.Infinite
+                  NumberAnimation { from: 1; to: 0.25; duration: 500; easing.type: Easing.InOutQuad }
+                  NumberAnimation { from: 0.25; to: 1; duration: 500; easing.type: Easing.InOutQuad }
+                }
+              }
+
+              Row {
+                anchors.right: parent.right
+                spacing: Style.space(4)
+                visible: timerSection.idleOnly
+
+                Rectangle {
+                  width: tabManualText.implicitWidth + Style.space(16)
+                  height: Style.space(24)
+                  radius: Style.cornerRadius
+                  border.width: Style.spacing.hairline
+                  border.color: root.timerTab === "manual"
+                    ? Style.normalBorderFor(root.contentForeground, Commons.Color.accent)
+                    : Style.normalBorderFor(root.contentForeground, root.contentForeground)
+                  color: root.timerTab === "manual"
+                    ? Style.selectedFillFor(root.contentForeground, Commons.Color.accent)
+                    : "transparent"
+
+                  Text {
+                    id: tabManualText
+                    anchors.centerIn: parent
+                    textFormat: Text.PlainText
+                    text: "TIMER"
+                    color: root.timerTab === "manual" ? Commons.Color.accent : root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                    font.letterSpacing: 1
+                    font.bold: true
+                  }
+
+                  MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.timerTab = "manual"
+                  }
+                }
+
+                Rectangle {
+                  width: tabPomoText.implicitWidth + Style.space(16)
+                  height: Style.space(24)
+                  radius: Style.cornerRadius
+                  border.width: Style.spacing.hairline
+                  border.color: root.timerTab === "pomo"
+                    ? Style.normalBorderFor(root.contentForeground, Commons.Color.accent)
+                    : Style.normalBorderFor(root.contentForeground, root.contentForeground)
+                  color: root.timerTab === "pomo"
+                    ? Style.selectedFillFor(root.contentForeground, Commons.Color.accent)
+                    : "transparent"
+
+                  Text {
+                    id: tabPomoText
+                    anchors.centerIn: parent
+                    textFormat: Text.PlainText
+                    text: "POMODORO"
+                    color: root.timerTab === "pomo" ? Commons.Color.accent : root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption
+                    font.letterSpacing: 1
+                    font.bold: true
+                  }
+
+                  MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.timerTab = "pomo"
+                  }
+                }
+              }
+            }
+
+            // Hero: steppers flank the readout in fixed slots, so centering
+            // never jumps when state changes (Fitts + Gestalt proximity).
+            Item {
+              width: parent.width
+              height: heroRow.height
+
+              Row {
+                id: heroRow
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: Style.space(12)
+
+                TimerPill {
+                  label: "−5M"
+                  width: Style.space(52)
+                  visible: !root.pomodoroActive && (!timerSection.idleOnly || root.timerTab === "manual")
+                  dimmed: !timerSection.idleOnly
+                  foreground: root.contentForeground
+                  fontFamily: root.contentFontFamily
+                  onClicked: root.timerStep(-5)
+                }
+
+                Text {
+                  anchors.verticalCenter: parent.verticalCenter
+                  textFormat: Text.PlainText
+                  text: Model.formatCountdown(timerSection.remainingMs)
+                  color: root.timerDoneAt > 0 && !root.pomodoroActive
+                    ? Commons.Color.urgent
+                    : root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.display
+                  font.letterSpacing: 1
+                  font.bold: true
+                }
+
+                TimerPill {
+                  label: "+5M"
+                  width: Style.space(52)
+                  visible: !root.pomodoroActive && (!timerSection.idleOnly || root.timerTab === "manual")
+                  dimmed: !timerSection.idleOnly
+                  foreground: root.contentForeground
+                  fontFamily: root.contentFontFamily
+                  onClicked: root.timerStep(5)
+                }
+              }
+            }
+
+            // Remaining-time bar. Behavior-only motion, no re-layout.
+            Rectangle {
+              width: parent.width
+              height: Style.space(3)
+              radius: Style.space(1)
+              visible: !timerSection.idleOnly
+              color: root.timerDoneAt > 0 && !root.pomodoroActive
+                ? Util.alpha(Commons.Color.urgent, 0.15)
+                : Util.alpha(root.contentForeground, 0.12)
+
+              Rectangle {
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                height: parent.height
+                width: parent.width * timerSection.phaseFraction
+                radius: parent.radius
+                color: timerSection.phaseColor
+
+                Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.OutQuad } }
+                Behavior on color { ColorAnimation { duration: 250 } }
+              }
+            }
+
+            // The set at a glance: 4 segments = 4 focus blocks; accent is
+            // work done, the half-alpha segment is the block in progress.
+            Item {
+              width: parent.width
+              height: cycleRail.height
+              visible: root.pomodoroActive
+
+              Row {
+                id: cycleRail
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: Style.space(4)
+
+                Repeater {
+                  model: Model.POMODORO_CYCLE
+
+                  Rectangle {
+                    required property int modelData
+                    width: (timerSection.width - 3 * Style.space(4)) / Model.POMODORO_CYCLE
+                    height: Style.space(4)
+                    radius: Style.space(2)
+                    color: {
+                      var done = root.pomodoroMode === "longbreak" ? Model.POMODORO_CYCLE
+                        : root.pomodoroCyclesDone % Model.POMODORO_CYCLE
+                      if (modelData <= done) return Commons.Color.accent
+                      if (modelData === done + 1 && root.pomodoroMode === "focus")
+                        return Util.alpha(Commons.Color.accent, 0.5)
+                      return Util.alpha(root.contentForeground, 0.12)
+                    }
+                  }
+                }
+              }
+            }
+
+            // Pomodoro idle summary: the whole contract in one muted line.
+            Item {
+              width: parent.width
+              height: pomoSummary.implicitHeight
+              visible: timerSection.idleOnly && root.timerTab === "pomo"
+
+              Text {
+                id: pomoSummary
+                anchors.horizontalCenter: parent.horizontalCenter
+                textFormat: Text.PlainText
+                text: "FOCUS " + root.pomodoroFocusMin + " · BREAK " + root.pomodoroBreakMin
+                  + " · LONG " + Model.POMODORO_LONG_BREAK_MIN + " · " + Model.POMODORO_CYCLE + " BLOCKS"
+                color: Qt.darker(root.contentForeground, 1.5)
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption
                 font.letterSpacing: 1
-                font.bold: true
               }
+            }
 
-              TimerPill {
-                label: root.timerRunning ? "PAUSE" : (root.timerDoneAt > 0 ? "RESET" : (root.timerRemainingMs > 0 ? "RESUME" : "START"))
-                prominent: true
-                foreground: root.contentForeground
-                fontFamily: root.contentFontFamily
-                visible: !root.pomodoroActive
-                onClicked: root.timerToggle()
-              }
+            // Verbs follow state; the primary carries the tone.
+            Item {
+              width: parent.width
+              height: verbsRow.height
 
-              TimerPill {
-                label: "RESET"
-                foreground: root.contentForeground
-                fontFamily: root.contentFontFamily
-                visible: !root.pomodoroActive && !root.timerRunning && root.timerRemainingMs > 0 && root.timerDoneAt === 0
-                onClicked: root.timerReset()
-              }
+              Row {
+                id: verbsRow
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: Style.space(8)
 
-              // The second mode's entry point, one click from idle.
-              TimerPill {
-                label: "POMODORO " + root.pomodoroFocusMin + "/" + root.pomodoroBreakMin
-                prominent: true
-                foreground: root.contentForeground
-                fontFamily: root.contentFontFamily
-                visible: !root.pomodoroActive && !root.timerRunning && root.timerDoneAt === 0
-                onClicked: root.pomodoroStart()
+                TimerPill {
+                  label: "START"
+                  prominent: true
+                  visible: timerSection.idleOnly && root.timerTab === "manual"
+                  foreground: root.contentForeground
+                  fontFamily: root.contentFontFamily
+                  onClicked: root.timerToggle()
+                }
+
+                TimerPill {
+                  label: "PAUSE"
+                  prominent: true
+                  visible: !root.pomodoroActive && root.timerRunning
+                  foreground: root.contentForeground
+                  fontFamily: root.contentFontFamily
+                  onClicked: root.timerToggle()
+                }
+
+                TimerPill {
+                  label: "RESUME"
+                  prominent: true
+                  visible: !root.pomodoroActive && !root.timerRunning && root.timerRemainingMs > 0 && root.timerDoneAt === 0
+                  foreground: root.contentForeground
+                  fontFamily: root.contentFontFamily
+                  onClicked: root.timerToggle()
+                }
+
+                TimerPill {
+                  label: "RESET"
+                  visible: !root.pomodoroActive && !root.timerRunning && root.timerRemainingMs > 0 && root.timerDoneAt === 0
+                  foreground: root.contentForeground
+                  fontFamily: root.contentFontFamily
+                  onClicked: root.timerReset()
+                }
+
+                TimerPill {
+                  label: "RESET"
+                  prominent: true
+                  toneColor: Commons.Color.urgent
+                  visible: !root.pomodoroActive && root.timerDoneAt > 0
+                  foreground: root.contentForeground
+                  fontFamily: root.contentFontFamily
+                  onClicked: root.timerReset()
+                }
+
+                TimerPill {
+                  label: "START CYCLE"
+                  prominent: true
+                  visible: timerSection.idleOnly && root.timerTab === "pomo"
+                  foreground: root.contentForeground
+                  fontFamily: root.contentFontFamily
+                  onClicked: root.pomodoroStart()
+                }
+
+                TimerPill {
+                  label: "SKIP →"
+                  visible: root.pomodoroActive
+                  foreground: root.contentForeground
+                  fontFamily: root.contentFontFamily
+                  onClicked: root.pomodoroAdvance()
+                }
+
+                TimerPill {
+                  label: "STOP"
+                  visible: root.pomodoroActive
+                  foreground: root.contentForeground
+                  fontFamily: root.contentFontFamily
+                  onClicked: root.pomodoroStop()
+                }
               }
             }
           }

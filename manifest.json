@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "gdeyoung.timepiece",
   "name": "Time Piece",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": "gdeyoung",
-  "description": "Time Piece \u2014 Omarchy's clock with the date in the bar label (Sunday Oct 18 4:20 PM), a gear-opened settings view (city-search world clocks, date toggle, timer defaults), a start/stop countdown timer, and a self-running pomodoro (25/5 focus-break cycles, long break every 4th, desktop notification on each phase flip)",
+  "description": "Time Piece \u2014 Omarchy's clock with the date in the bar label, a gear-opened settings view (city-search world clocks with categorical label hues, date toggle), a countdown timer, and a self-running pomodoro \u2014 redesigned timer section: 24px mm:ss hero readout, TIMER/POMODORO mode tabs, remaining-time bar, 4-block cycle rail, phase-colored states (focus/break/long break co-coded with words)",
   "kinds": [
     "bar-widget"
   ],
