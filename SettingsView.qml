@@ -310,7 +310,7 @@ Column {
       Text {
         id: dateToggleLabel
         anchors.left: parent.left
-        anchors.baseline: dateTogglePillText.baseline
+        anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         text: "Date in bar"
         color: clockPanel.contentForeground
@@ -376,7 +376,7 @@ Column {
       Text {
         id: timerDefaultLabel
         anchors.left: parent.left
-        anchors.baseline: timerMinusText.baseline
+        anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         text: "Default minutes"
         color: clockPanel.contentForeground
@@ -416,7 +416,7 @@ Column {
         }
 
         Text {
-          anchors.baseline: timerMinusText.baseline
+          anchors.verticalCenter: parent.verticalCenter
           textFormat: Text.PlainText
           text: clockPanel.timerMinutes
           color: clockPanel.contentForeground
