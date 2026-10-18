@@ -217,7 +217,7 @@ test("Panel still owns zone add/remove through zonesToString", () => {
 })
 
 test("Popup timer row is labeled — reads as a timer, not mystery steppers", () => {
-  assert.match(panel, /text: root\.timerRunning \|\| root\.timerDoneAt > 0 \? "TIMER · RUNNING" : "TIMER"/)
+  assert.match(panel, /\? "TIMER · RUNNING" : "TIMER"/) // now inside the pomodoro-aware ternary
 })
 
 test("Panel owns the timer actions and writes exact keys", () => {
@@ -242,8 +242,39 @@ test("BarWidget carries the countdown in the label and tolerates string state", 
   assert.match(barWidget, /value === true \|\| value === "true"/)
 })
 
-test("version moved to 0.3.0 with the feature set named", () => {
-  assert.equal(manifest.version, "0.3.0")
+test("version moved to 0.4.0 with the feature set named", () => {
+  assert.equal(manifest.version, "0.4.0")
   assert.match(manifest.description, /settings view/)
   assert.match(manifest.description, /countdown timer/)
+  assert.match(manifest.description, /pomodoro/)
+})
+
+test("pomodoro phase table: 4th focus goes long, breaks return to focus, off is null", () => {
+  assert.deepEqual(M.nextPomodoroPhase("focus", 0, 25, 5), { mode: "break", minutes: 5, cyclesDone: 1 })
+  assert.deepEqual(M.nextPomodoroPhase("focus", 3, 25, 5), { mode: "longbreak", minutes: 15, cyclesDone: 4 })
+  assert.deepEqual(M.nextPomodoroPhase("break", 4, 25, 5), { mode: "focus", minutes: 25, cyclesDone: 4 })
+  assert.deepEqual(M.nextPomodoroPhase("longbreak", 7, 30, 10), { mode: "focus", minutes: 30, cyclesDone: 7 })
+  assert.equal(M.nextPomodoroPhase("off", 0, 25, 5), null)
+  assert.deepEqual(M.nextPomodoroPhase("focus", 0, 999, 0), { mode: "break", minutes: 5, cyclesDone: 1 }) // clamped
+})
+
+test("pomodoro bar suffix is compact and phase-flagged", () => {
+  assert.equal(M.pomodoroBarSuffix("focus", 1052000), "F 17:32")
+  assert.equal(M.pomodoroBarSuffix("break", 30000), "B 00:30")
+  assert.equal(M.pomodoroBarSuffix("longbreak", 900000), "L 15:00")
+  assert.equal(M.pomodoroBarSuffix("off", 60000), "")
+})
+
+test("pomodoro wiring: exclusive modes, watcher owns the fire, notify on natural flip only", () => {
+  assert.match(panel, /function pomodoroStart\(\)/)
+  assert.match(panel, /timerRunning: false, timerRemainingMs: 0, timerDoneAt: 0,\n      pomodoroMode: "focus"/)
+  assert.match(panel, /if \(root\.pomodoroActive\) \{ root\.pomodoroStop\(\) \} \/\/ modes are exclusive/)
+  assert.match(panel, /running: root\.timerRunning \|\| root\.timerDoneAt > 0 \|\| root\.pomodoroActive/)
+  assert.match(panel, /root\.pomodoroAdvance\(true\)/)
+  assert.match(panel, /pomodoroProc\.command = \["omarchy-notification-send", title, body\]/)
+  assert.match(panel, /POMODORO " \+ root\.pomodoroFocusMin \+ "\/" \+ root\.pomodoroBreakMin/)
+  assert.match(barWidget, /pomodoroMode !== "off" && pomodoroEndsAt > 0/)
+  assert.match(barWidget, /Model\.pomodoroBarSuffix\(pomodoroMode, pomodoroRemainingMs\)/)
+  assert.match(settings, /POMODORO/)
+  assert.match(settings, /clockPanel\.pomodoroStep\(5, "focus"\)/)
 })

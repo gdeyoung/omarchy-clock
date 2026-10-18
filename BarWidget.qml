@@ -58,7 +58,7 @@ BarWidget {
     // Ticks while counting down AND while the "done" ping is still inside its
     // two-minute window — otherwise timerNow goes stale and the ping never
     // ages out. Stops itself the moment the suffix empties.
-    running: root.timerRunning || root.timerSuffix !== ""
+    running: root.timerRunning || root.timerSuffix !== "" || root.pomodoroMode !== "off"
     repeat: true
     onTriggered: root.timerNow = new Date()
   }
@@ -66,9 +66,18 @@ BarWidget {
   readonly property real timerRemainingMs: timerRunning
     ? Math.max(0, timerEndsAt - timerNow.getTime())
     : 0
-  readonly property string timerSuffix: timerRunning
-    ? " · " + Model.formatCountdown(timerRemainingMs)
-    : ((timerDoneAt > 0 && timerNow.getTime() - timerDoneAt < 120000) ? " · done" : "")
+  readonly property string pomodoroMode: {
+    var value = setting("pomodoroMode", "off")
+    return (value === "focus" || value === "break" || value === "longbreak") ? value : "off"
+  }
+  readonly property real pomodoroEndsAt: Number(setting("pomodoroEndsAt", 0)) || 0
+  readonly property real pomodoroRemainingMs: Math.max(0, pomodoroEndsAt - timerNow.getTime())
+
+  readonly property string timerSuffix: pomodoroMode !== "off" && pomodoroEndsAt > 0
+    ? " · " + Model.pomodoroBarSuffix(pomodoroMode, pomodoroRemainingMs)
+    : (timerRunning
+        ? " · " + Model.formatCountdown(timerRemainingMs)
+        : ((timerDoneAt > 0 && timerNow.getTime() - timerDoneAt < 120000) ? " · done" : ""))
 
   function refresh() {
     displayDate = new Date()

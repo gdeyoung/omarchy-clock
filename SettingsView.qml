@@ -382,8 +382,6 @@ Column {
         color: clockPanel.contentForeground
         font.family: clockPanel.contentFontFamily
         font.pixelSize: Style.font.body
-      }
-
       Row {
         anchors.right: parent.right
         spacing: Style.space(8)
@@ -452,4 +450,114 @@ Column {
       }
     }
   }
+
+  // ---- Pomodoro: the cycle lengths. Long break (15) and set length (4)
+  //      are fixed — two steppers carry everything a user actually tunes.
+  Column {
+    width: parent.width
+    spacing: Style.space(8)
+
+    Text {
+      textFormat: Text.PlainText
+      text: "POMODORO"
+      color: Qt.darker(clockPanel.contentForeground, 1.5)
+      font.family: clockPanel.contentFontFamily
+      font.pixelSize: Style.font.caption
+      font.letterSpacing: 1
+    }
+
+    Item {
+      width: parent.width
+      height: Math.max(pomoFocusLabel.implicitHeight, pomoSteppers.height)
+
+      Text {
+        id: pomoFocusLabel
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
+        text: "Focus / break minutes"
+        color: clockPanel.contentForeground
+        font.family: clockPanel.contentFontFamily
+        font.pixelSize: Style.font.body
+      }
+
+      Row {
+        id: pomoSteppers
+        anchors.right: parent.right
+        spacing: Style.space(8)
+
+        Rectangle {
+          width: Style.space(36)
+          height: Math.max(pomoMinusText.implicitHeight + Style.space(8), Style.space(24))
+          radius: Style.cornerRadius
+          border.width: Style.spacing.hairline
+          border.color: Style.normalBorderFor(clockPanel.contentForeground, clockPanel.contentForeground)
+
+          Text {
+            id: pomoMinusText
+            anchors.centerIn: parent
+            textFormat: Text.PlainText
+            text: "−"
+            color: clockPanel.contentForeground
+            font.family: clockPanel.contentFontFamily
+            font.pixelSize: Style.font.body
+            font.bold: true
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: { clockPanel.pomodoroStep(-5, "focus"); clockPanel.pomodoroStep(-1, "break") }
+          }
+        }
+
+        Text {
+          anchors.verticalCenter: parent.verticalCenter
+          textFormat: Text.PlainText
+          text: clockPanel.pomodoroFocusMin + " / " + clockPanel.pomodoroBreakMin
+          color: clockPanel.contentForeground
+          font.family: clockPanel.contentFontFamily
+          font.pixelSize: Style.font.body
+          font.bold: true
+        }
+
+        Rectangle {
+          width: Style.space(36)
+          height: Math.max(pomoMinusText.implicitHeight + Style.space(8), Style.space(24))
+          radius: Style.cornerRadius
+          border.width: Style.spacing.hairline
+          border.color: Style.normalBorderFor(clockPanel.contentForeground, clockPanel.contentForeground)
+
+          Text {
+            anchors.centerIn: parent
+            textFormat: Text.PlainText
+            text: "+"
+            color: clockPanel.contentForeground
+            font.family: clockPanel.contentFontFamily
+            font.pixelSize: Style.font.body
+            font.bold: true
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: { clockPanel.pomodoroStep(5, "focus"); clockPanel.pomodoroStep(1, "break") }
+          }
+        }
+      }
+    }
+
+    Text {
+      width: parent.width
+      wrapMode: Text.WordWrap
+      textFormat: Text.PlainText
+      text: "4 focus blocks, then a 15-minute long break. Phases advance on their own; a desktop notification marks each flip."
+      color: Qt.darker(clockPanel.contentForeground, 1.5)
+      font.family: clockPanel.contentFontFamily
+      font.pixelSize: Style.font.caption
+    }
+  }
+}
 }

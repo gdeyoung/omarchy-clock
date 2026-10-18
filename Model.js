@@ -414,6 +414,52 @@ function filterZones(regions, query, limit) {
 // ---- Countdown timer. State lives in the widget entry: timerMinutes is the
 //      idle preset, timerEndsAt/timerRemainingMs carry run/pause, timerDoneAt
 //      stamps the fire so the bar's "done" ping can age out on its own.
+
+// ---- Pomodoro. A second timer mode that runs itself: focus blocks alternate
+//      with breaks, every 4th break is a long one, and phases advance without
+//      a click. State lives in the widget entry next to the manual timer's:
+//      pomodoroMode ("off"|"focus"|"break"|"longbreak"), pomodoroEndsAt,
+//      pomodoroCyclesDone, pomodoroFocusMin, pomodoroBreakMin. The manual
+//      timer and pomodoro never run at once — starting one clears the other.
+var POMODORO_LONG_BREAK_MIN = 15
+var POMODORO_CYCLE = 4 // focus blocks before a long break
+
+function clampPomodoroMinutes(value, fallback, lo, hi) {
+  var n = Math.round(Number(value) || fallback)
+  return Math.max(lo, Math.min(hi, n))
+}
+
+// The one transition table. mode is the phase ENDING; returns the next state
+// (mode, minutes, cyclesDone) or null for "off"/unknown input.
+function nextPomodoroPhase(mode, cyclesDone, focusMin, breakMin) {
+  focusMin = clampPomodoroMinutes(focusMin, 25, 1, 120)
+  breakMin = clampPomodoroMinutes(breakMin, 5, 1, 60)
+  var done = Number(cyclesDone) || 0
+  if (mode === "focus") {
+    done += 1
+    if (done % POMODORO_CYCLE === 0) return { mode: "longbreak", minutes: POMODORO_LONG_BREAK_MIN, cyclesDone: done }
+    return { mode: "break", minutes: breakMin, cyclesDone: done }
+  }
+  if (mode === "break" || mode === "longbreak") {
+    return { mode: "focus", minutes: focusMin, cyclesDone: done }
+  }
+  return null
+}
+
+function pomodoroPhaseLabel(mode) {
+  if (mode === "focus") return "FOCUS"
+  if (mode === "break") return "BREAK"
+  if (mode === "longbreak") return "LONG BREAK"
+  return ""
+}
+
+// Bar suffix: F/B/L + mm:ss so the label stays short (Sunday Oct 18 5:30 PM · F 17:32).
+function pomodoroBarSuffix(mode, msRemaining) {
+  var letter = mode === "focus" ? "F" : (mode === "break" ? "B" : (mode === "longbreak" ? "L" : ""))
+  if (letter === "") return ""
+  return letter + " " + formatCountdown(msRemaining)
+}
+
 function formatCountdown(ms) {
   var total = Math.max(0, Math.ceil(ms / 1000))
   var m = Math.floor(total / 60)
@@ -461,6 +507,12 @@ if (typeof module !== "undefined") {
     prettifyCity: prettifyCity,
     filterZones: filterZones,
     formatCountdown: formatCountdown,
-    stepTimerMinutes: stepTimerMinutes
+    stepTimerMinutes: stepTimerMinutes,
+    POMODORO_LONG_BREAK_MIN: POMODORO_LONG_BREAK_MIN,
+    POMODORO_CYCLE: POMODORO_CYCLE,
+    clampPomodoroMinutes: clampPomodoroMinutes,
+    nextPomodoroPhase: nextPomodoroPhase,
+    pomodoroPhaseLabel: pomodoroPhaseLabel,
+    pomodoroBarSuffix: pomodoroBarSuffix
   }
 }

@@ -73,6 +73,8 @@ The popup itself stays a read-out.
 | `showDate`   | `true`                  | Date in the bar label — the popup toggle  |
 | `worldClocks`| *(empty)*               | `LABEL:Zone,...` row in the popup — pick region → city via the ZONES pill  |
 | `timerMinutes` | `10`                  | Idle timer preset (1–600)                 |
+| `pomodoroFocusMin`, `pomodoroBreakMin` | `25`, `5` | Pomodoro cycle lengths (steppers in settings) |
+| `pomodoroMode`, `pomodoroEndsAt`, `pomodoroCyclesDone` | *(transient)* | Live pomodoro phase state |
 | `timerRunning`, `timerEndsAt`, `timerRemainingMs`, `timerDoneAt` | *(transient)* | Live timer state — written by the popup controls, read by the bar |
 | `verticalFormat`, `verticalFormatAlt`, `weekStartDay`, `birthYear`, `lifeExpectancy` | stock | Untouched stock settings |
 

@@ -151,6 +151,7 @@ Panel {
       })
     } else {
       if (root.timerDoneAt > 0) { root.timerReset(); return }
+      if (root.pomodoroActive) { root.pomodoroStop() } // modes are exclusive
       var remaining = root.timerRemainingMs > 0 ? root.timerRemainingMs : root.timerMinutes * 60000
       if (remaining <= 0) return
       persistSettings({
@@ -165,17 +166,90 @@ Panel {
     persistSettings({ timerRunning: false, timerRemainingMs: 0, timerDoneAt: 0 })
   }
 
+  // ---- Pomodoro: the self-running mode. Shares the timer row but not the
+  //      state — starting either mode clears the other so the bar suffix and
+  //      the readout always have exactly one owner. Phase transitions are
+  //      computed by Model.nextPomodoroPhase; the watcher below fires them.
+  readonly property string pomodoroMode: {
+    var value = setting("pomodoroMode", "off")
+    return (value === "focus" || value === "break" || value === "longbreak") ? value : "off"
+  }
+  readonly property real pomodoroEndsAt: Number(setting("pomodoroEndsAt", 0)) || 0
+  readonly property int pomodoroCyclesDone: Number(setting("pomodoroCyclesDone", 0)) || 0
+  readonly property int pomodoroFocusMin: Model.clampPomodoroMinutes(setting("pomodoroFocusMin", 25), 25, 1, 120)
+  readonly property int pomodoroBreakMin: Model.clampPomodoroMinutes(setting("pomodoroBreakMin", 5), 5, 1, 60)
+  readonly property bool pomodoroActive: pomodoroMode !== "off"
+
+  function pomodoroStart() {
+    persistSettings({
+      timerRunning: false, timerRemainingMs: 0, timerDoneAt: 0,
+      pomodoroMode: "focus",
+      pomodoroEndsAt: Date.now() + pomodoroFocusMin * 60000,
+      pomodoroCyclesDone: 0
+    })
+  }
+
+  // Applies the next phase immediately (also the fire path: when now >=
+  // pomodoroEndsAt the watcher calls this). notify=true only on a natural
+  // phase fire — a manual skip does not get a notification.
+  function pomodoroAdvance(notify) {
+    var next = Model.nextPomodoroPhase(root.pomodoroMode, root.pomodoroCyclesDone, root.pomodoroFocusMin, root.pomodoroBreakMin)
+    if (!next) { root.pomodoroStop(); return }
+    persistSettings({
+      pomodoroMode: next.mode,
+      pomodoroEndsAt: Date.now() + next.minutes * 60000,
+      pomodoroCyclesDone: next.cyclesDone
+    })
+    if (notify) pomodoroNotify(next.mode)
+  }
+
+  function pomodoroStop() {
+    persistSettings({ pomodoroMode: "off", pomodoroEndsAt: 0 })
+  }
+
+  function pomodoroNotify(mode) {
+    // The plugin's one user-visible side effect: a desktop notification per
+    // phase fire (omarchy's own sender, rate-limited by nature — one call).
+    var title = mode === "focus" ? "Focus time" : (mode === "longbreak" ? "Long break" : "Break time")
+    var body = mode === "focus"
+      ? root.pomodoroFocusMin + " min focus block — go."
+      : (mode === "longbreak" ? Model.POMODORO_LONG_BREAK_MIN : root.pomodoroBreakMin) + " min break."
+    if (pomodoroProc.running) pomodoroProc.running = false
+    pomodoroProc.command = ["omarchy-notification-send", title, body]
+    pomodoroProc.running = true
+  }
+
+  function pomodoroStep(delta, which) {
+    // V4-safe: no computed object keys — write the one key explicitly.
+    var lo = 1
+    var hi = which === "break" ? 60 : 120
+    var current = which === "break" ? root.pomodoroBreakMin : root.pomodoroFocusMin
+    var value = Math.max(lo, Math.min(hi, current + delta))
+    if (which === "break") persistSettings({ pomodoroBreakMin: value })
+    else persistSettings({ pomodoroFocusMin: value })
+  }
+
+  Process {
+    id: pomodoroProc
+    command: ["true"]
+  }
+
   // The fire itself: flips running off and stamps the ping. 250 ms while a
   // run is live is cheap and makes the flip snappy; it also retires the
   // "done" ping two minutes later so the bar cleans itself up.
   Timer {
     interval: 250
-    running: root.timerRunning || root.timerDoneAt > 0
+    running: root.timerRunning || root.timerDoneAt > 0 || root.pomodoroActive
     repeat: true
     onTriggered: {
       root.timerNow = new Date()
       var now = root.timerNow.getTime()
-      if (root.timerRunning && root.timerEndsAt > 0 && now >= root.timerEndsAt)
+      // Pomodoro owns the clock while it is active — a phase fire advances
+      // to the next phase (with notification) rather than ringing once.
+      if (root.pomodoroActive && root.pomodoroEndsAt > 0 && now >= root.pomodoroEndsAt) {
+        root.pomodoroAdvance(true)
+      }
+      else if (root.timerRunning && root.timerEndsAt > 0 && now >= root.timerEndsAt)
         root.persistSettings({ timerRunning: false, timerRemainingMs: 0, timerDoneAt: now })
       else if (!root.timerRunning && root.timerDoneAt > 0 && now - root.timerDoneAt >= 120000)
         root.persistSettings({ timerDoneAt: 0 })
@@ -960,8 +1034,15 @@ Panel {
               id: timerLabelRow
               anchors.horizontalCenter: parent.horizontalCenter
               textFormat: Text.PlainText
-              text: root.timerRunning || root.timerDoneAt > 0 ? "TIMER · RUNNING" : "TIMER"
-              color: Qt.darker(root.contentForeground, 1.5)
+              text: root.pomodoroActive
+                ? Model.pomodoroPhaseLabel(root.pomodoroMode)
+                  + (root.pomodoroMode === "focus"
+                      ? " · " + ((root.pomodoroCyclesDone % Model.POMODORO_CYCLE) + 1) + " OF " + Model.POMODORO_CYCLE
+                      : "")
+                : (root.timerRunning || root.timerDoneAt > 0 ? "TIMER · RUNNING" : "TIMER")
+              color: root.pomodoroActive && root.pomodoroMode !== "focus"
+                ? Commons.Color.accent
+                : Qt.darker(root.contentForeground, 1.5)
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.caption
               font.letterSpacing: 2
@@ -974,11 +1055,30 @@ Panel {
               anchors.topMargin: Style.space(6)
               spacing: Style.space(10)
 
+              // ---- Pomodoro controls own the row while it runs: SKIP
+              //      advances the phase now, STOP exits to idle.
+              TimerPill {
+                label: "SKIP →"
+                prominent: true
+                foreground: root.contentForeground
+                fontFamily: root.contentFontFamily
+                visible: root.pomodoroActive
+                onClicked: root.pomodoroAdvance(false)
+              }
+
+              TimerPill {
+                label: "STOP"
+                foreground: root.contentForeground
+                fontFamily: root.contentFontFamily
+                visible: root.pomodoroActive
+                onClicked: root.pomodoroStop()
+              }
+
               TimerPill {
                 label: "−5M"
                 foreground: root.contentForeground
                 fontFamily: root.contentFontFamily
-                visible: !root.timerRunning && root.timerDoneAt === 0
+                visible: !root.timerRunning && root.timerDoneAt === 0 && !root.pomodoroActive
                 onClicked: root.timerStep(-5)
               }
 
@@ -986,7 +1086,7 @@ Panel {
                 label: "+5M"
                 foreground: root.contentForeground
                 fontFamily: root.contentFontFamily
-                visible: !root.timerRunning && root.timerDoneAt === 0
+                visible: !root.timerRunning && root.timerDoneAt === 0 && !root.pomodoroActive
                 onClicked: root.timerStep(5)
               }
 
@@ -994,14 +1094,16 @@ Panel {
                 id: timerReadout
                 anchors.verticalCenter: parent.verticalCenter
                 textFormat: Text.PlainText
-                text: root.timerDoneAt > 0
-                  ? "00:00"
-                  : (root.timerRunning || root.timerRemainingMs > 0
-                      ? Model.formatCountdown(root.timerDisplayMs)
-                      : root.timerMinutes + "M")
-                color: root.timerDoneAt > 0
-                  ? Commons.Color.accent
-                  : root.contentForeground
+                text: root.pomodoroActive
+                  ? Model.formatCountdown(Math.max(0, root.pomodoroEndsAt - root.timerNow.getTime()))
+                  : (root.timerDoneAt > 0
+                      ? "00:00"
+                      : (root.timerRunning || root.timerRemainingMs > 0
+                          ? Model.formatCountdown(root.timerDisplayMs)
+                          : root.timerMinutes + "M"))
+                color: root.pomodoroActive
+                  ? (root.pomodoroMode === "focus" ? root.contentForeground : Commons.Color.accent)
+                  : (root.timerDoneAt > 0 ? Commons.Color.accent : root.contentForeground)
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.font.body
                 font.letterSpacing: 1
@@ -1013,6 +1115,7 @@ Panel {
                 prominent: true
                 foreground: root.contentForeground
                 fontFamily: root.contentFontFamily
+                visible: !root.pomodoroActive
                 onClicked: root.timerToggle()
               }
 
@@ -1020,8 +1123,18 @@ Panel {
                 label: "RESET"
                 foreground: root.contentForeground
                 fontFamily: root.contentFontFamily
-                visible: !root.timerRunning && root.timerRemainingMs > 0 && root.timerDoneAt === 0
+                visible: !root.pomodoroActive && !root.timerRunning && root.timerRemainingMs > 0 && root.timerDoneAt === 0
                 onClicked: root.timerReset()
+              }
+
+              // The second mode's entry point, one click from idle.
+              TimerPill {
+                label: "POMODORO " + root.pomodoroFocusMin + "/" + root.pomodoroBreakMin
+                prominent: true
+                foreground: root.contentForeground
+                fontFamily: root.contentFontFamily
+                visible: !root.pomodoroActive && !root.timerRunning && root.timerDoneAt === 0
+                onClicked: root.pomodoroStart()
               }
             }
           }
