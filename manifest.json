@@ -4,7 +4,7 @@
   "name": "Time Piece",
   "version": "0.3.0",
   "author": "gdeyoung",
-  "description": "Time Piece \u2014 Omarchy's clock with the date in the bar label (Sunday Oct 18 4:20 PM), a date on/off toggle, an optional world-clock row, and a start/stop countdown timer",
+  "description": "Time Piece \u2014 Omarchy's clock with the date in the bar label (Sunday Oct 18 4:20 PM), a gear-opened settings view (city-search world clocks, date toggle, timer default), and a start/stop countdown timer",
   "kinds": [
     "bar-widget"
   ],

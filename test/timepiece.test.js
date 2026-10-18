@@ -244,6 +244,6 @@ test("BarWidget carries the countdown in the label and tolerates string state", 
 
 test("version moved to 0.3.0 with the feature set named", () => {
   assert.equal(manifest.version, "0.3.0")
-  assert.match(manifest.description, /world-clock/)
+  assert.match(manifest.description, /settings view/)
   assert.match(manifest.description, /countdown timer/)
 })

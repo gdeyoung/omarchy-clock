@@ -19,9 +19,7 @@ Four things, everything else is stock:
    writes back to `~/.config/omarchy/shell.json` and the bar label changes
    live.
 3. **An optional world-clock row** — times in up to five other zones, right
-   under the date hero. Pick them in the popup: the **ZONES** pill opens a
-   region → city picker (curated list, verified against tzdata), with × to
-   remove — or set `worldClocks` by hand:
+   under the date hero, chosen in the settings view (below) or by hand:
    `ET:America/New_York,PT:America/Los_Angeles` and the popup carries
    `ET 5:20 PM  PT 2:20 PM`. Unset (default) hides the row. The QML engine
    has no timezone support, so each configured zone costs one read-only
@@ -59,6 +57,12 @@ no day-name-plus-date entry, and there is no toggle, world clock, or timer.
 Everything else is upstream code, so rebasing onto stock clock updates
 stays small (Model.js, BarWidget.qml and Panel.qml are the only touched
 files).
+
+A small **gear at the popup's top-right** opens the settings view: world
+clocks with live times (× to remove), a **type-to-search city picker** over
+the full tz database (518 zones, verified against this machine's tzdata;
+ET/PT/UTC aliases work), the date-in-bar toggle, and the timer default.
+The popup itself stays a read-out.
 
 ## Settings
 
