@@ -147,8 +147,8 @@ test("Panel reads worldClocks through Model and renders zone times via date", ()
 
 test("zones.js picker list is real: every entry exists in this tzdata", () => {
   const src = read("zones.js")
-  assert.match(src, /export const TZ_REGIONS/)
-  const data = JSON.parse(src.slice(src.indexOf("{"), src.lastIndexOf("}") + 1))
+  assert.match(src, /var TZ_REGIONS =/)
+  const data = require("../zones.js").TZ_REGIONS
   const fs = require("node:fs")
   let count = 0
   for (const [region, cities] of Object.entries(data)) {
