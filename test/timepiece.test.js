@@ -205,7 +205,7 @@ test("Settings view is the config surface: gear swaps it in, writes go through p
   assert.match(panel, /blocked: root\.editingLife \|\| root\.settingsOpen/)
   assert.match(panel, /visible: !root\.settingsOpen/)
   assert.match(panel, /visible: root\.settingsOpen/)
-  assert.match(panel, /import "SettingsView\.qml"/)
+  assert.doesNotMatch(panel, /import "SettingsView/) // Quickshell loader: "no such directory" on single-file imports; same-dir types resolve implicitly (TimerPill precedent)
 })
 
 test("Panel still owns zone add/remove through zonesToString", () => {

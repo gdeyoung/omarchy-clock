@@ -6,7 +6,6 @@ import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 import "zones.js" as Zones
-import "SettingsView.qml"
 
 // The clock's calendar popup: a month grid with ISO week numbers, built to
 // sit beside the weather panel — same hero-over-detail composition, same
