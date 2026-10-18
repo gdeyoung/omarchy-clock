@@ -31,6 +31,14 @@ Four things, everything else is stock:
    label pings `· done` for two minutes and the popup shows `00:00` until
    reset. Timer state persists in the widget entry, so a run survives a
    shell restart.
+5. **A pomodoro mode** — one click on `POMODORO 25/5` runs the classic cycle
+   unattended: focus blocks alternate with breaks, every 4th break is a
+   long one (15 min), and each phase flip fires a desktop notification
+   (`omarchy-notification-send`). The bar shows phase + remaining time
+   (`· F 17:32`, `· B 3:10`, `· L 14:59`); the popup shows `FOCUS · 2 OF 4`
+   with `SKIP →` and `STOP`. Focus and break lengths are steppers in the
+   settings view. The manual timer and pomodoro are mutually exclusive —
+   starting one stops the other.
 
 `showDate: false` masks the date out of *whatever* format the label is in —
 `dddd MMM d h:mm AP` becomes `dddd h:mm AP`, `yyyy-MM-dd HH:mm` becomes
@@ -80,10 +88,11 @@ The popup itself stays a read-out.
 
 ## What the plugin runs
 
-One thing, by design: `date` (coreutils, read-only) — one call per
+Two things, by design: `date` (coreutils, read-only) — one call per
 configured world-clock zone per minute, as `TZ=<zone> date +%-I:%M %p`, with
-the output shape-validated before display. No network, no package manager,
-no writes anywhere outside Omarchy's own settings API
+the output shape-validated before display; and `omarchy-notification-send`
+once per pomodoro phase flip (Omarchy's own notifier helper). No network,
+no package manager, no writes anywhere outside Omarchy's own settings API
 (`shell.setBarWidget` / `updateEntryInline`). The unit tests run
 `node --test test/`.
 
